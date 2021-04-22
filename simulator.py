@@ -1,4 +1,67 @@
 # Differentiable molecular simulation of proteins with a coarse-grained potential
+
+
+class EncodeProcessDecode(torch.nn.Module):
+    def __init__(self, ff_distances, ff_angles, ff_dihedrals):
+        super(Simulator, self).__init__()
+        self.ff_distances = torch.nn.Parameter(ff_distances)
+        self.ff_angles    = torch.nn.Parameter(ff_angles)
+        self.ff_dihedrals = torch.nn.Parameter(ff_dihedrals)
+
+    def forward(self, input_graph: gn.graphs.GraphsTuple) -> tf.Tensor:
+        """Forward pass of the learnable dynamics model."""
+
+        # Encode the input_graph.
+        latent_graph_0 = self._encode(input_graph)
+
+        # Do `m` message passing steps in the latent graphs.
+        latent_graph_m = self._process(latent_graph_0)
+
+        # Decode from the last latent graph.
+        return self._decode(latent_graph_m)        
+ 
+    def _encode(self):
+    def _process(self):
+    def _decode(self):
+
+class LearnedSimulator(torch.nn.Module):
+    def __init__(self, ff_distances, ff_angles, ff_dihedrals):
+        super(Simulator, self).__init__()
+
+        self.simulator = LearnedSimulator()
+
+    def forward(self, coords, n_steps, timestep):
+
+        self._encoder_preprocessor(coords)
+
+        for i in range(n_steps):
+
+            self.simulator()
+            self.update()
+
+            vels = vels + 0.5 * (accs_last + accs) * timestep
+            accs_last = accs
+
+    def _encoder_preprocessor(self):
+
+    def _update(self, normalized_acceleration, position_sequence):
+        # The model produces the output in normalized space so we apply inverse
+        # normalization.
+        acceleration_stats = self._normalization_stats["acceleration"]
+        acceleration = (
+            normalized_acceleration * acceleration_stats.std
+            ) + acceleration_stats.mean
+
+        # Use an Euler integrator to go from acceleration to position, assuming
+        # a dt=1 corresponding to the size of the finite difference.
+        most_recent_position = position_sequence[:, -1]
+        most_recent_velocity = most_recent_position - position_sequence[:, -2]
+
+        new_velocity = most_recent_velocity + acceleration  # * dt = 1
+        new_position = most_recent_position + new_velocity  # * dt = 1
+        return new_position
+
+
 class Simulator(torch.nn.Module):
     def __init__(self, ff_distances, ff_angles, ff_dihedrals):
         super(Simulator, self).__init__()
