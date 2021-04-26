@@ -2,11 +2,44 @@
 
 
 class EncodeProcessDecode(torch.nn.Module):
-    def __init__(self, ff_distances, ff_angles, ff_dihedrals):
-        super(Simulator, self).__init__()
-        self.ff_distances = torch.nn.Parameter(ff_distances)
-        self.ff_angles = torch.nn.Parameter(ff_angles)
-        self.ff_dihedrals = torch.nn.Parameter(ff_dihedrals)
+    def __init__(self):
+        super(EncodeProcessDecode, self).__init__()
+
+        self._networks_builder()
+
+    def _networks_builder(self):
+        """Builds the networks."""
+
+        # TODO convert to Pytorch
+        def build_mlp_with_layer_norm():
+            mlp = build_mlp(
+                hidden_size=self._mlp_hidden_size,
+                num_hidden_layers=self._mlp_num_hidden_layers,
+                output_size=self._latent_size)
+            return snt.Sequential([mlp, snt.LayerNorm()])
+
+        # The encoder graph network independently encodes edge and node features.
+        encoder_kwargs = dict(
+            edge_model_fn=build_mlp_with_layer_norm,
+            node_model_fn=build_mlp_with_layer_norm)
+        self._encoder_network = gn.modules.GraphIndependent(**encoder_kwargs)
+
+        # Create `num_message_passing_steps` graph networks with unshared parameters
+        # that update the node and edge latent features.
+        # Note that we can use `modules.InteractionNetwork` because
+        # it also outputs the messages as updated edge latent features.
+        self._processor_networks = []
+        for _ in range(self._num_message_passing_steps):
+        self._processor_networks.append(
+            gn.modules.InteractionNetwork(
+                edge_model_fn=build_mlp_with_layer_norm,
+                node_model_fn=build_mlp_with_layer_norm))
+
+        # The decoder MLP decodes node latent features into the output size.
+        self._decoder_network = build_mlp(
+            hidden_size=self._mlp_hidden_size,
+            num_hidden_layers=self._mlp_num_hidden_layers,
+            output_size=self._output_size)
 
     def forward(self, input_graph: gn.graphs.GraphsTuple) -> tf.Tensor:
         """Forward pass of the learnable dynamics model."""
@@ -21,8 +54,17 @@ class EncodeProcessDecode(torch.nn.Module):
         return self._decode(latent_graph_m)
 
     def _encode(self):
+        """
+        Encode nodes and edges independtly using MLPs
+        """
     def _process(self):
+        """
+        Message passing
+        """
     def _decode(self):
+        """
+        Extract dynamics features - (e.g. acceleration? force?)
+        """
 
 
 class LearnedSimulator(torch.nn.Module):
@@ -33,17 +75,16 @@ class LearnedSimulator(torch.nn.Module):
 
     def forward(self, coords, n_steps, timestep, start_temperature, device):
 
+        # Perturb coords with random vels
         vels = torch.randn(coords.shape, device=device) * start_temperature
-        accs_last = torch.zeros(coords.shape, device=device)
-
-        coords = coords + vels + 0.5 * accs_last
+        coords = coords + vels
 
         self._encoder_preprocessor(coords)
 
         for i in range(n_steps):
 
             self.simulator()
-            self.update()
+            self._update()
 
             vels = vels + 0.5 * (accs_last + accs) * timestep
             accs_last = accs

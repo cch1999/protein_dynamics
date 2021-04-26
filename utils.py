@@ -4,6 +4,10 @@ import os
 import torch
 from sklearn import neighbors
 import matplotlib.pyplot as plt
+import torch.nn as nn
+from torch_geometric.data import Data
+from pykeops.torch import LazyTensor
+
 
 
 cgdms_dir = os.path.dirname(os.path.realpath(__file__))
@@ -139,7 +143,7 @@ def _compute_connectivity(positions, radius, add_self_edges):
 
   return senders, receivers
 
-def construct_graph(fp, radius, add_self_edges):
+def construct_graph_networkx(fp, radius, add_self_edges):
 
     native_coords, inters_ang, inters_dih, masses, seq = read_input_file(fp)
     senders, receivers = _compute_connectivity(native_coords, radius, add_self_edges)
@@ -159,4 +163,105 @@ def construct_graph(fp, radius, add_self_edges):
 
     return G
 
-print(construct_graph("protein_data/example/1CRN.txt", 5 ,False))
+def construct_graph(fp):
+    """
+    Returns a PyTorch Geometric Data object encoding a course-grained protein graph.
+    """
+
+    native_coords, inters_ang, inters_dih, masses, seq = read_input_file(fp)
+
+    one_hot_atoms = torch.tensor([[1,0,0,0],
+                                [0,1,0,0],
+                                [0,0,1,0],
+                                [0,0,0,1]])
+    one_hot_atoms = one_hot_atoms.repeat(len(seq), 1)
+
+    one_hot_seq = torch.zeros(len(seq)*4, 20)
+    for i, aa in enumerate(seq):
+        index = aas.index(aa)
+        one_hot_seq[i*4:(i+1)*4, index] = 1
+
+    node_f = torch.cat([one_hot_atoms, one_hot_seq], dim=1)
+
+
+    G = Data(node_f=node_f, pos=native_coords, seq=seq, mass=masses)
+
+    return G
+
+
+# TODO add RELU
+class MLP(nn.Module):
+    """Builds an MLP."""
+    def __init__(self, input_size: int, hidden_size: int, num_hidden_layers: int, output_size: int):
+        super(MLP, self).__init__()
+
+        layers = [nn.Linear(input_size, hidden_size)]
+
+        for i in range(num_hidden_layers - 1):
+            layers.append(nn.Linear(hidden_size, hidden_size))
+        
+        layers.append(nn.Linear(hidden_size, output_size))
+        self.layers = layers
+
+    def forward(self, x):
+        for layer in self.layers:
+            x = layer(x)
+        return x
+
+def MLP_with_layernorm(input_size: int, hidden_size: int, 
+                        num_hidden_layers: int, output_size: int):
+    return nn.Sequential(MLP(input_size, hidden_size, 
+                        num_hidden_layers, output_size),
+                        nn.LayerNorm())
+
+def knn(coords, k):
+    """
+    Finds the k-nearest neibours
+    """
+
+    N, D = coords.shape
+    xyz_i = LazyTensor(coords[:, None, :])
+    xyz_j = LazyTensor(coords[None, :, :])
+
+    pairwise_distance_ij = ((xyz_i - xyz_j) ** 2).sum(-1)
+    #pairwise_distance_ij.ranges = diagonal_ranges(x_batch, y_batch)
+
+    idx = pairwise_distance_ij.argKmin(K=k, axis=1)  # (N, K)
+    x_ik = coords[idx.view(-1)].view(N, k, D)
+    distplacements = (coords[:, None, :] - x_ik).view(N*k, 3)
+    dists = distplacements.norm(dim=-1).view(N*k,1)
+    
+    senders = idx[:,0].repeat(k)
+    recievers =  idx.view(N*k)
+
+    edges = torch.cat([senders, recievers]).view(N*k,2)
+    
+    edge_attr = torch.cat([dists, distplacements], dim=1)
+    
+    return edges, edge_attr
+#print(construct_graph("protein_data/example/1CRN.txt", 5 ,False))
+#print(construct_features("protein_data/example/1CRN.txt", 5))
+
+
+def rmsd(c1, c2):
+    device = c1.device
+    r1 = c1.transpose(0, 1)
+    r2 = c2.transpose(0, 1)
+    P = r1 - r1.mean(1).view(3, 1)
+    Q = r2 - r2.mean(1).view(3, 1)
+    cov = torch.matmul(P, Q.transpose(0, 1))
+    try:
+        U, S, V = torch.svd(cov)
+    except RuntimeError:
+        report("  SVD failed to converge", 0)
+        return torch.tensor([20.0], device=device), False
+    d = torch.tensor([
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            [0.0, 0.0, torch.det(torch.matmul(V, U.transpose(0, 1)))]
+    ], device=device)
+    rot = torch.matmul(torch.matmul(V, d), U.transpose(0, 1))
+    rot_P = torch.matmul(rot, P)
+    diffs = rot_P - Q
+    msd = (diffs ** 2).sum() / diffs.size(1)
+    return msd.sqrt(), True
