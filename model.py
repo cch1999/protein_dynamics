@@ -3,6 +3,9 @@ import torch.nn as nn
 from pykeops.torch import LazyTensor
 from utils import MLP, MLP_with_layernorm, construct_graph, knn, rmsd
 import matplotlib.pyplot as plt
+import torch_geometric
+import os
+
 
 
 n_objects = 3
@@ -118,21 +121,25 @@ class Simulator(torch.nn.Module):
 	def __init__(self):
 		super(Simulator, self).__init__()
 
-		self.node_encoder = MLP(24, 128, 2, 128)
-		self.edge_encoder = MLP(4, 128, 2, 128)
+		self.node_encoder = MLP(25, 128, 1, 128)
+		self.edge_encoder = MLP(5, 128, 1, 128)
 		self.interaction_net = nn.ModuleList()
 
-		for i in range(10):
+		for i in range(5):
 			self.interaction_net.append(InteractionNetwork(128, 128, 128, 128, 128))
 
 		self.decoder = MLP(128, 128, 2, 3)
 
 	def forward(self, P, k):
 
-		G.vels = torch.zeros(G.pos.shape)
-		G.pos = G.pos + torch.randn(G.pos.shape) * 0.1
+		# Init with random velocites and update positions
+		P.vels = torch.randn(G.pos.shape) * 0.001
+		print("No help RMSD:",
+			rmsd(P.pos, P.pos + (P.vels*20))[0])
+		
+		P.pos = P.pos + P.vels
 
-		for i in range(10):
+		for i in range(20):
 			# Learned simulator
 			P = self.encode(P, k)
 			P = self.process(P)
@@ -145,8 +152,7 @@ class Simulator(torch.nn.Module):
 
 	def encode(self, P, k):
 		# Compute connectiviity and embed nodes and edges
-
-		P.edge_index, P.edge_attr = knn(P.pos, k)
+		P.edge_index, P.edge_attr = knn(P, k)
 
 		P.x = P.node_f.clone()
 
@@ -165,7 +171,6 @@ class Simulator(torch.nn.Module):
 		P.receivers = recievers
 
 		# Embed node properties
-		# TODO embed edge attributes
 		P.x = self.node_encoder(G.x)
 		P.edge_attr = self.edge_encoder(P.edge_attr)
 
@@ -178,7 +183,9 @@ class Simulator(torch.nn.Module):
 		# Process latent graph
 		# TODO add residual connection
 		for i, layer in enumerate(self.interaction_net):
+			residual_x, residual_edge = P.x, P.edge_attr
 			P.x, P.edge_attr = layer(P.x, P.senders, P.receivers, P.edge_attr)
+			P.x, P.edge_attr = P.x+residual_x, P.edge_attr+residual_edge
 		return P
 
 	def decode(self, P):
@@ -192,49 +199,91 @@ class Simulator(torch.nn.Module):
 		"""
 		Update coordinates
 		"""
-		acc = P.x/P.mass[:, None]
+		acc = P.x#/P.mass[:, None]
+	
+		total_acc = acc.norm(dim=-1)
+
+		"""
+		print("Acceleration", total_acc.mean())
+		print("Velocity", P.vels.norm(-1).mean())
+		"""
 
 		# Intergrator (assuming dT = 1)
-		vels = P.vels + acc
-		P.pos = P.pos + vels
+		P.vels = P.vels + acc
+		P.pos = P.pos + P.vels
 
 		return P
 
-G = construct_graph("protein_data/example/1CRN.txt")
-
-native_coords =  G.pos
-
-G.vels = torch.randn(G.pos.shape)
 
 model = Simulator()
-
 optimizer = torch.optim.Adam(model.parameters())
 
 model.train()
 optimizer.zero_grad()
 
 losses = []
+test_losses = []
 
-for i in range(100):
+data_dir = "protein_data/train_val/"
+data = os.listdir(data_dir)
 
-	G = construct_graph("protein_data/example/1CRN.txt")
+for i in range(400):
 
-	out = model(G, 10)
-	loss, passed = rmsd(native_coords, out.pos)
+	total_loss = 0.0
 
-	if passed:
-		"""
-		loss_log = torch.log(1.0 + loss)
-		loss_log.backward(retain_graph=True)
-		"""
-		loss.backward(retain_graph=True)
-		optimizer.step()
-		optimizer.zero_grad()
-	print(i)
+	for protein in data[:1]:
+		G = construct_graph(data_dir+protein)
+		native_coords = G.pos
+
+		out = model(G, 15)
+		loss, passed = rmsd(native_coords, out.pos)
+
+		if passed:
+			loss_log = torch.log(1.0 + loss)
+			loss_log.backward(retain_graph=True)
+			optimizer.step()
+			optimizer.zero_grad()
+			print(i)
+			print(loss)
+			total_loss += float(loss)
+	
+	losses.append(total_loss/10)
+	"""
+	# Test
+	with torch.no_grad():
+		G = construct_graph(data_dir+data[-1])
+		native_coords = G.pos
+		test_out = model(G, 15)
+		test_loss, passed = rmsd(native_coords, test_out.pos)
+		if passed:
+			print("Test loss:", test_loss)
+			test_losses.append(test_loss)
+	"""
+exit()
+from cgdms import starting_coords
+
+G = construct_graph(data_dir+data[0])
+native_coords = G.pos
+
+G.pos = starting_coords(G.seq)
+
+print("Starting RMSD", rmsd(native_coords, G.pos)[0])
+
+rmsds = []
+
+for i in range(1000):
+	G = model(G, 15)
+	loss = rmsd(native_coords, G.pos)[0]
 	print(loss)
-
-	losses.append(loss)
-
-plt.plot(losses)
+	rmsds.append(loss)
+"""
+plt.plot(losses, label="Train")
+plt.plot(test_losses, label="Test")
+"""
+plt.plot(rmsds)
 plt.ylim(0)
+plt.xlim(0)
+plt.ylabel("Loss - RMSD (A)")
+plt.xlabel("Epoch")
+plt.legend()
 plt.show()

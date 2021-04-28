@@ -181,7 +181,9 @@ def construct_graph(fp):
         index = aas.index(aa)
         one_hot_seq[i*4:(i+1)*4, index] = 1
 
-    node_f = torch.cat([one_hot_atoms, one_hot_seq], dim=1)
+    res_numbers = torch.cat([torch.ones(4,1)*i for i in range(len(seq))])
+
+    node_f = torch.cat([one_hot_atoms, one_hot_seq, res_numbers], dim=1)
 
 
     G = Data(node_f=node_f, pos=native_coords, seq=seq, mass=masses)
@@ -214,10 +216,14 @@ def MLP_with_layernorm(input_size: int, hidden_size: int,
                         num_hidden_layers, output_size),
                         nn.LayerNorm())
 
-def knn(coords, k):
+def knn(P, k):
     """
     Finds the k-nearest neibours
     """
+
+    coords = P.pos
+    residue_numbers = P.node_f[:,-1]
+
 
     N, D = coords.shape
     xyz_i = LazyTensor(coords[:, None, :])
@@ -230,13 +236,15 @@ def knn(coords, k):
     x_ik = coords[idx.view(-1)].view(N, k, D)
     distplacements = (coords[:, None, :] - x_ik).view(N*k, 3)
     dists = distplacements.norm(dim=-1).view(N*k,1)
-    
+
     senders = idx[:,0].repeat(k)
     recievers =  idx.view(N*k)
 
     edges = torch.cat([senders, recievers]).view(N*k,2)
+
+    res_dists = (residue_numbers[senders] - residue_numbers[recievers]).view(N*k,1)
     
-    edge_attr = torch.cat([dists, distplacements], dim=1)
+    edge_attr = torch.cat([dists, distplacements, res_dists], dim=1)
     
     return edges, edge_attr
 #print(construct_graph("protein_data/example/1CRN.txt", 5 ,False))
