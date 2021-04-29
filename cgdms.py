@@ -11,6 +11,7 @@ from itertools import count
 from math import pi
 import os
 from random import gauss, random, shuffle
+from utils import knn_coords, _compute_connectivity
 
 cgdms_dir = os.path.dirname(os.path.realpath(__file__))
 dataset_dir = os.path.join(cgdms_dir, "datasets")
@@ -274,7 +275,7 @@ class Simulator(torch.nn.Module):
         model_n = 0
 
         print("-----")
-        print(inters_flat.shape)
+        print(inters_flat)
         print(inters_flat[0].shape)
         print(pair_pots_flat.shape)
         print(pair_centres_flat.shape)
@@ -289,17 +290,11 @@ class Simulator(torch.nn.Module):
         if energy:
             n_steps += 1
 
+        n_steps = 200
+
         for i in range(n_steps):
+            print(i)
             if integrator == "vel":
-                coords = coords + vels * timestep + 0.5 * accs_last * timestep * timestep
-            elif integrator == "langevin":
-                # From Gronbech-Jensen 2013
-                alpha, twokbT = thermostat_const, temperature
-                beta = np.sqrt(twokbT * alpha * timestep) * torch.randn(vels.shape, device=device)
-                b = 1.0 / (1.0 + (alpha * timestep) / (2 * masses.unsqueeze(2)))
-                coords_last = coords
-                coords = coords + b * timestep * vels + 0.5 * b * (timestep ** 2) * accs_last + 0.5 * b * timestep * beta / masses.unsqueeze(2)
-            elif integrator == "langevin_simple":
                 coords = coords + vels * timestep + 0.5 * accs_last * timestep * timestep
 
             # See https://arxiv.org/pdf/1401.1181.pdf for derivation of forces
@@ -309,7 +304,42 @@ class Simulator(torch.nn.Module):
                 dist_energy = torch.zeros(1, device=device)
                 angle_energy = torch.zeros(1, device=device)
                 dih_energy = torch.zeros(1, device=device)
+            
+            print('Getting connectivity')
+            senders, receivers = _compute_connectivity(coords[0].view(n_atoms, 3).detach().cpu().numpy(), 8, False)
+            print('Got connectivity')
+            senders = torch.tensor(senders).to(device)
+            receivers = torch.tensor(receivers).to(device)
 
+
+            close_inters = inters_flat[0,(senders*n_atoms) + receivers]
+
+            pair_centres_flat = dist_bin_centres_tensor.index_select(0, close_inters)
+            pair_pots_flat = self.ff_distances.index_select(0, close_inters)
+
+            diffs = coords[:,senders] - coords[:,receivers]
+            dists = diffs.norm(dim=2)
+
+
+            dists_from_centres = pair_centres_flat - dists[0,:].unsqueeze(1).expand(-1, n_bins_force)
+            dist_bin_inds = dists_from_centres.abs().argmin(dim=1).unsqueeze(1)
+
+
+
+
+            pair_forces_flat = 0.5 * (pair_pots_flat.gather(1, dist_bin_inds) - pair_pots_flat.gather(1, dist_bin_inds + 2))
+
+            norm_diffs = diffs / dists.clamp(min=0.01).unsqueeze(2)
+            pair_accs = (pair_forces_flat) * norm_diffs[0]
+
+            accs = torch.zeros(n_atoms, 3).to(device)
+
+            print('starting loop')
+            accs[receivers] += pair_accs
+
+            accs = accs.unsqueeze(0)
+            print('Done distances')
+            """
             # Add pairwise distance forces
             crep = coords.unsqueeze(1).expand(-1, n_atoms, -1, -1)
             diffs = crep - crep.transpose(1, 2)
@@ -326,6 +356,8 @@ class Simulator(torch.nn.Module):
             accs = pair_accs.sum(dim=1) / masses.unsqueeze(2)
             if printing or returning_energy:
                 dist_energy += 0.5 * pair_pots_flat.gather(2, dist_bin_inds + 1).sum()
+            """
+
 
             atom_coords = coords.view(batch_size, n_res, 3 * len(atoms))
             atom_accs = torch.zeros(batch_size, n_res, 3 * len(atoms), device=device)
@@ -426,31 +458,19 @@ class Simulator(torch.nn.Module):
                 if printing or returning_energy:
                     dih_energy += dih_pots_to_use.gather(2, dih_bin_inds + 1).sum()
 
+
             accs += atom_accs.view(batch_size, n_atoms, 3) / masses.unsqueeze(2)
 
             # Shortcut to return energy at a given step
             if returning_energy:
                 return dist_energy + angle_energy + dih_energy
 
+
             if integrator == "vel":
                 vels = vels + 0.5 * (accs_last + accs) * timestep
                 accs_last = accs
-            elif integrator == "no_vel":
-                coords_next = 2 * coords - coords_last + accs * timestep * timestep
-                coords_last = coords
-                coords = coords_next
-            elif integrator == "langevin":
-                # From Gronbech-Jensen 2013
-                vels = vels + 0.5 * timestep * (accs_last + accs) - alpha * (coords - coords_last) / masses.unsqueeze(2) + beta / masses.unsqueeze(2)
-                accs_last = accs
-            elif integrator == "langevin_simple":
-                gamma, twokbT = thermostat_const, temperature
-                accs = accs + (-gamma * vels + np.sqrt(gamma * twokbT) * torch.randn(vels.shape, device=device)) / masses.unsqueeze(2)
-                vels = vels + 0.5 * (accs_last + accs) * timestep
-                accs_last = accs
-            elif integrator == "min":
-                coords = coords + accs * 0.1
 
+            
             # Apply thermostat
             if integrator in ("vel", "no_vel") and thermostat_const > 0.0:
                 thermostat_prob = timestep / thermostat_const
@@ -642,12 +662,14 @@ def train(model_filepath, device="cpu", verbosity=0):
         shuffle(val_inds)
         simulator.train()
         optimizer.zero_grad()
+        print("Number of steps:", n_steps)
         for i, ni in enumerate(train_inds):
             native_coords, inters_flat, inters_ang, inters_dih, masses, seq = train_set[ni]
             coords = simulator(native_coords.unsqueeze(0), inters_flat.unsqueeze(0),
                                 inters_ang.unsqueeze(0), inters_dih.unsqueeze(0), masses.unsqueeze(0),
                                 seq, native_coords.unsqueeze(0), n_steps, verbosity=verbosity)
             loss, passed = rmsd(coords[0], native_coords)
+            print('Loss:', loss)
             train_rmsds.append(loss.item())
             if passed:
                 loss_log = torch.log(1.0 + loss)

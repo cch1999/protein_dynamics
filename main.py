@@ -5,12 +5,13 @@
 
 import argparse
 import pkg_resources
-
+"""
 parser = argparse.ArgumentParser(description=(
     "Differentiable molecular simulation of proteins with a coarse-grained potential. "
     "See https://github.com/psipred/cgdms for documentation and citation information. "
     f"This is version {pkg_resources.get_distribution('cgdms').version} of the software."
 ))
+"""
 subparsers = parser.add_subparsers(dest="mode",
     help="the mode to run cgdms in, run \"cgdms {mode} -h\" to see help for each")
 
