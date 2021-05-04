@@ -19,25 +19,24 @@ from utils import rmsd
 x = native_coords
 y = native_coords
 
-coords = native_coords.cuda()
-print(coords)
 
 vels = torch.zeros(native_coords.shape)
 
 time_steps = 1000
+for i in range(1000):
+    coords = torch.randn([4000,3], device="cuda:5")
 
-xyz_i = LazyTensor(coords[:,None,:])  # x_i.shape = (1e6, 1, 3)
-xyz_j = LazyTensor(coords[None,:,:])  # y_j.shape = ( 1, 2e6,3)
+    xyz_i = LazyTensor(coords[:,None,:])  # x_i.shape = (1e6, 1, 3)
+    xyz_j = LazyTensor(coords[None,:,:])  # y_j.shape = ( 1, 2e6,3)
 
-# We can now perform large-scale computations, without memory overflows:
-D_ij = ((xyz_i - xyz_j)**2).sum(-1).sqrt()
-print(D_ij.argKmin(K=20, axis=1))
-V_ij = xyz_i - xyz_j
+    # We can now perform large-scale computations, without memory overflows:
+    D_ij = ((xyz_i - xyz_j)**2).sum(-1).sqrt()
+    print(D_ij.argKmin(K=20, axis=1).shape)
+    V_ij = xyz_i - xyz_j
 
-mask = (4-D_ij).step()
-V_ij = V_ij * mask
+    mask = (4-D_ij).step()
+    V_ij = V_ij * mask
 
-print(V_ij)
 
 
 exit()

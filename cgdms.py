@@ -12,6 +12,7 @@ from math import pi
 import os
 from random import gauss, random, shuffle
 from utils import knn_coords, _compute_connectivity
+from tqdm import tqdm
 
 cgdms_dir = os.path.dirname(os.path.realpath(__file__))
 dataset_dir = os.path.join(cgdms_dir, "datasets")
@@ -120,7 +121,6 @@ def read_input_file(fp, seq="", device="cpu"):
     native_coords: coords
     """
 
-    print(fp)
     with open(fp) as f:
         lines = f.readlines()
         if seq == "":
@@ -162,12 +162,6 @@ def read_input_file(fp, seq="", device="cpu"):
     # TODO make this LazyTensor
     inters_flat = inters.view(n_atoms * n_atoms)
 
-    print(len(interactions))
-    print(inters)
-    print(inters_flat)
-    print(inters_flat.shape)
-    print(n_atoms)
-    print(n_atoms**2)
 
     masses = []
     for i, r in enumerate(seq):
@@ -191,14 +185,11 @@ def read_input_file(fp, seq="", device="cpu"):
 
     # Different angle potentials for each residue
     inters_ang = torch.tensor([aas.index(r) for r in seq], dtype=torch.long, device=device)
-    print(inters_ang)
 
     # Different dihedral potentials for each residue and predicted secondary structure type
     inters_dih = torch.tensor([aas.index(r) * len(ss_types) + ss_types.index(s) for r, s in zip(seq, ss_pred)],
                                 dtype=torch.long, device=device)
 
-    print(inters_dih)
-    print(inters_dih.shape)
 
     return native_coords, inters_flat, inters_ang, inters_dih, masses, seq
 
@@ -274,15 +265,14 @@ class Simulator(torch.nn.Module):
         native_coords_ca = native_coords.view(batch_size, n_res, 3 * len(atoms))[0, :, 3:6]
         model_n = 0
 
-        print("-----")
-        print(inters_flat)
-        print(inters_flat[0].shape)
-        print(pair_pots_flat.shape)
-        print(pair_centres_flat.shape)
 
         if integrator == "vel" or integrator == "langevin" or integrator == "langevin_simple":
             vels = torch.randn(coords.shape, device=device) * start_temperature
             accs_last = torch.zeros(coords.shape, device=device)
+            randn_coords = coords + vels * timestep * n_steps
+            loss, passed = rmsd(randn_coords[0], coords[0])
+            print("\nBasic loss:", loss)
+        
         elif integrator == "no_vel":
             coords_last = coords.clone() + torch.randn(coords.shape, device=device) * start_temperature * timestep
 
@@ -290,10 +280,7 @@ class Simulator(torch.nn.Module):
         if energy:
             n_steps += 1
 
-        n_steps = 200
-
         for i in range(n_steps):
-            print(i)
             if integrator == "vel":
                 coords = coords + vels * timestep + 0.5 * accs_last * timestep * timestep
 
@@ -305,9 +292,7 @@ class Simulator(torch.nn.Module):
                 angle_energy = torch.zeros(1, device=device)
                 dih_energy = torch.zeros(1, device=device)
             
-            print('Getting connectivity')
             senders, receivers = _compute_connectivity(coords[0].view(n_atoms, 3).detach().cpu().numpy(), 8, False)
-            print('Got connectivity')
             senders = torch.tensor(senders).to(device)
             receivers = torch.tensor(receivers).to(device)
 
@@ -334,11 +319,9 @@ class Simulator(torch.nn.Module):
 
             accs = torch.zeros(n_atoms, 3).to(device)
 
-            print('starting loop')
             accs[receivers] += pair_accs
 
             accs = accs.unsqueeze(0)
-            print('Done distances')
             """
             # Add pairwise distance forces
             crep = coords.unsqueeze(1).expand(-1, n_atoms, -1, -1)
@@ -651,6 +634,7 @@ def train(model_filepath, device="cpu", verbosity=0):
     report("Starting training", 0, verbosity)
     for ei in count(start=0, step=1):
         # After 37 epochs reset the optimiser with a lower learning rate
+        
         if ei == 37:
             optimizer = torch.optim.Adam(simulator.parameters(), lr=learning_rate / 2)
 
@@ -663,13 +647,13 @@ def train(model_filepath, device="cpu", verbosity=0):
         simulator.train()
         optimizer.zero_grad()
         print("Number of steps:", n_steps)
-        for i, ni in enumerate(train_inds):
+        for i, ni in tqdm(enumerate(train_inds)):
             native_coords, inters_flat, inters_ang, inters_dih, masses, seq = train_set[ni]
             coords = simulator(native_coords.unsqueeze(0), inters_flat.unsqueeze(0),
                                 inters_ang.unsqueeze(0), inters_dih.unsqueeze(0), masses.unsqueeze(0),
                                 seq, native_coords.unsqueeze(0), n_steps, verbosity=verbosity)
             loss, passed = rmsd(coords[0], native_coords)
-            print('Loss:', loss)
+            print('----- Loss:', loss)
             train_rmsds.append(loss.item())
             if passed:
                 loss_log = torch.log(1.0 + loss)

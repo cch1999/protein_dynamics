@@ -1,11 +1,11 @@
-import networkx as nx
+#import networkx as nx
 import numpy as np
 import os
 import torch
 from sklearn import neighbors
 import matplotlib.pyplot as plt
 import torch.nn as nn
-from torch_geometric.data import Data
+#from torch_geometric.data import Data
 from pykeops.torch import LazyTensor
 
 
