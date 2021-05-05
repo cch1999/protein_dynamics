@@ -24,7 +24,7 @@ val_proteins   = [l.rstrip() for l in open(os.path.join(dataset_dir, "val.txt"  
 
 device = "cuda:6"
 
-torch.set_num_threads(32)
+torch.set_num_threads(12)
 
 class ProteinDataset(Dataset):
     def __init__(self, pdbids, coord_dir, device="cpu"):
@@ -109,7 +109,7 @@ class Simulator(nn.Module):
 			# Compute forces using MLP
 			forces = self.distance_forces(node_f[senders], node_f[receivers], edges)
 			forces = forces * norm_diffs
-			total_forces = forces.view(n_atoms, k, 3).sum(1)/100
+			total_forces = forces.view(n_atoms, k, 3).sum(1)
 
 			accs = total_forces/masses.unsqueeze(1)
 			vels = vels + 0.5 * (accs_last + accs) * timestep
@@ -159,57 +159,60 @@ def get_features(fp, device):
 
 	return native_coords.to(device), node_f.to(device), res_numbers.to(device), masses.to(device), seq
 
-data_dir = "protein_data/train_val/"
-data = os.listdir(data_dir)
+if __name__ == "__main__":
 
-model = Simulator(50, 128, 1).to(device)
+	data_dir = "protein_data/train_val/"
+	data = os.listdir(data_dir)
 
-optimizer = torch.optim.Adam(model.parameters(), lr=0.0005)
+	model = Simulator(50, 128, 1).to(device)
+
+	optimizer = torch.optim.Adam(model.parameters(), lr=0.005)
 
 
-losses = []
+	losses = []
 
-pytorch_total_params = sum(p.numel() for p in model.parameters())
-print(pytorch_total_params)
+	pytorch_total_params = sum(p.numel() for p in model.parameters())
+	print(pytorch_total_params)
 
-train_set = ProteinDataset(train_proteins, train_val_dir, device=device)
-val_set   = ProteinDataset(val_proteins  , train_val_dir, device=device)
+	train_set = ProteinDataset(train_proteins, train_val_dir, device=device)
+	val_set   = ProteinDataset(val_proteins  , train_val_dir, device=device)
 
-for i in range(20):
-	print(f"Starting Epoch {i}:")
+	for i in range(20):
+		print(f"Starting Epoch {i}:")
 
-	train_inds = list(range(len(train_set)))
-	val_inds   = list(range(len(val_set)))
-	shuffle(train_inds)
-	shuffle(val_inds)
-	model.train()
-	optimizer.zero_grad()
-	for protein in tqdm(train_inds]):
-
-		coords, node_f, res_numbers, masses, seq = train_set[protein]
-
+		train_inds = list(range(len(train_set)))
+		val_inds   = list(range(len(val_set)))
+		shuffle(train_inds)
+		shuffle(val_inds)
 		model.train()
-		out, basic_loss = model(coords, node_f, res_numbers, masses, seq, 10, 
-						n_steps=250, timestep=0.02, temperature=0.2,
-						animation=False, device=device)
-
-		loss, passed = rmsd(out, coords)
-		loss_log = torch.log(1.0 + loss)
-		loss_log.backward()
-		optimizer.step()
 		optimizer.zero_grad()
-		losses.append(loss - basic_loss)
+		for protein in tqdm(train_inds):
 
+			coords, node_f, res_numbers, masses, seq = train_set[protein]
 
-		print("Basic loss:", basic_loss)
-		print("----- Loss:",loss)
+			model.train()
+			out, basic_loss = model(coords, node_f, res_numbers, masses, seq, 10, 
+							n_steps=250, timestep=0.02, temperature=0.2,
+							animation=False, device=device)
 
-	with torch.no_grad():
-		coords, node_f, res_numbers, masses, seq = get_features("protein_data/example/1CRN.txt", device=device)
+			loss, passed = rmsd(out, coords)
+			loss_log = torch.log(1.0 + loss)
+			loss_log.backward()
+			optimizer.step()
+			optimizer.zero_grad()
+			losses.append(loss - basic_loss)
 
-		out, basic_loss = model(coords, node_f, res_numbers, masses, seq, 10, 
-						n_steps=500, timestep=0.02, temperature=0.2,
-						animation=False, device=device)
-	
+			print("Epoch:", i)
+			print("Basic loss:", basic_loss)
+			print("----- Loss:",loss)
 
-	torch.save(model.state_dict(), os.path.join(model_dir, f"model{i}.pt"))
+		model.eval()
+		with torch.no_grad():
+			coords, node_f, res_numbers, masses, seq = get_features("protein_data/example/1CRN.txt", device=device)
+
+			out, basic_loss = model(coords, node_f, res_numbers, masses, seq, 10, 
+							n_steps=500, timestep=0.02, temperature=0.2,
+							animation=False, device=device)
+		
+
+		torch.save(model.state_dict(), os.path.join(model_dir, f"model{i}.pt"))
