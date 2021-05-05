@@ -299,3 +299,17 @@ def rmsd(c1, c2):
 	diffs = rot_P - Q
 	msd = (diffs ** 2).sum() / diffs.size(1)
 	return msd.sqrt(), True
+
+def save_structure(coords, sim_filepath, seq, model_n):
+	with open(sim_filepath, "a") as of:
+		of.write("MODEL {:>8}\n".format(model_n))
+		for ri, r in enumerate(seq):
+			for ai, atom in enumerate(atoms):
+				of.write("ATOM   {:>4}  {:<2}  {:3} A{:>4}    {:>8.3f}{:>8.3f}{:>8.3f}  1.00  0.00          {:>2}  \n".format(
+					len(atoms) * ri + ai + 1, atom[:2].upper(),
+					one_to_three_aas[r], ri + 1,
+					coords[0, len(atoms) * ri + ai, 0].item(),
+					coords[0, len(atoms) * ri + ai, 1].item(),
+					coords[0, len(atoms) * ri + ai, 2].item(),
+					atom[0].upper()))
+		of.write("ENDMDL\n")
