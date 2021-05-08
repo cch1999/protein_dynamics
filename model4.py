@@ -19,7 +19,7 @@ trained_model_file = os.path.join(model_dir, "test_model2.pt")
 train_proteins = [l.rstrip() for l in open(os.path.join(dataset_dir, "train.txt"))]
 val_proteins   = [l.rstrip() for l in open(os.path.join(dataset_dir, "val.txt"  ))]
 
-device = "cuda:6"
+device = "cuda:5"
 
 torch.set_num_threads(12)
 
@@ -72,36 +72,44 @@ class DistanceForces(nn.Module):
 		super(DistanceForces, self).__init__()
 
 
-		self.atom_embedding = nn.Sequential(nn.Linear(24,hidden_size),
-											nn.LeakyReLU(negative_slope=0.2),
-											nn.Linear(hidden_size, hidden_size))
-
 		self.model = nn.Sequential(
 			nn.Linear((2*24)+2, hidden_size),
-			nn.Tanh(),
+			nn.ReLU(),
 			nn.Linear(hidden_size, hidden_size),
-			nn.Tanh(),
+			nn.ReLU(),
 			nn.Linear(hidden_size, hidden_size),
-			nn.Tanh(),
+			nn.ReLU(),
+			nn.Linear(hidden_size, hidden_size),
+			nn.ReLU(),
+			nn.Linear(hidden_size, hidden_size),
+			nn.ReLU(),
 			nn.Linear(hidden_size, output_size))
 
 	def forward(self, atom1, atom2, edges):
-
-		#atom1, atom2 = self.atom_embedding(atom1), self.atom_embedding(atom2)
 
 		messages = torch.cat([atom1, atom2, edges], dim=1)
 
 		return self.model(messages)
 
 class AngleForces(nn.Module):
+	"""
+	Calculates forces between three atoms making an angle on their 
+		1. central atom types
+		2. angle around the central atom
+
+	Input dim = 25 (24 + 1)
+	Output dim = 1 (a scalar force)
+	"""
 	def __init__(self, input_size, hidden_size, output_size):
 		super(AngleForces, self).__init__()
 
 		self.model = nn.Sequential(
 			nn.Linear(input_size, hidden_size),
-			nn.Tanh(),
+			nn.ReLU(),
 			nn.Linear(hidden_size, hidden_size),
-			nn.Tanh(),
+			nn.ReLU(),
+			nn.Linear(hidden_size, hidden_size),
+			nn.ReLU(),
 			nn.Linear(hidden_size, output_size))
 
 	def forward(self, central_atom, angles):
@@ -289,13 +297,15 @@ if __name__ == "__main__":
 			coords, node_f, res_numbers, masses, seq = train_set[protein]
 
 			model.train()
+			print('Forward')
 			out, basic_loss = model(coords, node_f, res_numbers, masses, seq, 10, 
-							n_steps=500, timestep=0.02, temperature=0.02,
+							n_steps=800, timestep=0.02, temperature=0.02,
 							animation=False, device=device)
-
+			print('done forward')
 			loss, passed = rmsd(out, coords)
 			loss_log = torch.log(1.0 + loss)
 			loss_log.backward()
+			print('Done backprop')
 			optimizer.step()
 			optimizer.zero_grad()
 			losses.append(loss - basic_loss)
