@@ -61,6 +61,7 @@ centroid_dists = {
 
 
 
+
 # Read an input data file
 # The protein sequence is read from the file but will overrule the file if provided
 def read_input_file(fp, seq="", device="cpu"):

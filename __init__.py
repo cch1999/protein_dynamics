@@ -1,1 +1,1 @@
-from .cgdms import *
+from model6 import Simulator
