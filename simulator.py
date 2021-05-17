@@ -9,13 +9,16 @@ model = Simulator(50, 128, 1).to(device)
 model.load_state_dict(torch.load("models/current.pt", map_location=device))
 model.eval()
 
+pytorch_total_params = sum(p.numel() for p in model.parameters())
+print(pytorch_total_params)
+
 with torch.no_grad():
     coords, node_f, res_numbers, masses, seq = get_features("protein_data/example/1CRN.txt", device=device)
-    
+    """
     out, basic_loss = model(coords, node_f, res_numbers, masses, seq, 10, 
-                    n_steps=50000, timestep=0.02, temperature=0.02,
+                    n_steps=50000, timestep=0.02, temperature=0.01,
                     animation=100, device=device)
-    
+    """
 
     """
     model = model.angle_forces
@@ -111,7 +114,7 @@ with torch.no_grad():
     plt.savefig('I_L_sidechains.png')
  
     """
-    """
+    
     # Dihedrals
     model = model.dihedral_forces
     print(model)
@@ -160,7 +163,6 @@ with torch.no_grad():
                         atom3[None,None,:], atom4[None,None,:],
                         torch.tensor([dist])[None,:].to(device).float())
 
-        print(force)
 
         forces.append(force.item())
 
@@ -178,7 +180,6 @@ with torch.no_grad():
     y = 0
     print(forces)
     for i in range(len(forces)):
-        print(i)
         y += forces[i]
         pots.append(y)
     print(len(pots))
@@ -189,4 +190,4 @@ with torch.no_grad():
     #ax2.text(1.7, -20, 'True distance', color='red')
     ax2.set_title('Potential between Alanine R-Ca atoms')
     plt.savefig('dihedral_angles.png')
-    """
+    

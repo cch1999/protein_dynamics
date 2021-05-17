@@ -61,7 +61,6 @@ with torch.no_grad():
 
             force = model(atom1[None,:], atom2[None,:], torch.tensor([dist, 0])[None,:].to(device).float())
 
-
             forces.append(force.item())
 
 
@@ -71,6 +70,11 @@ with torch.no_grad():
         #axs[i//4,i%4].set_ylim(-15, 5)
         axs[i//4,i%4].set_title(one_to_three_aas[aas[i]])
         axs[i//4,i%4].set_xlim(1,max_dist)
+
+    for ax in axs.flat:
+        ax.set(xlabel='Distance (Å)', ylabel='Force (arbitary units)')
+    for ax in axs.flat:
+        ax.label_outer()
     fig.tight_layout()
 
     plt.savefig('sidechains.png')

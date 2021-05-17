@@ -192,6 +192,10 @@ class Simulator(nn.Module):
 
 			# Compute forces using MLP
 			forces = self.distance_forces(node_f[senders], node_f[receivers], edges)
+			print(forces)
+			print(forces.shape)
+			print(type(forces))
+			exit()
 			forces = forces * norm_diffs
 			total_forces = forces.view(n_atoms, k, 3).sum(1)/100
 			
@@ -379,10 +383,9 @@ if __name__ == "__main__":
 
 	model = Simulator(50, 128, 1).to(device)
 	model.load_state_dict(torch.load("models/current.pt", map_location=device))
-	print(model)
-	exit()
 
-	optimizer = torch.optim.Adam(model.parameters(), lr=0.0005)
+
+	optimizer = torch.optim.Adam(model.parameters(), lr=0.00005)
 
 
 	losses = []

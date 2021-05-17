@@ -39,7 +39,13 @@ with torch.no_grad():
                 bottom=False,
                 labelleft=False,
                 labelbottom=False)
-    fig.suptitle('Forces between Ca and side chains')
+    fig.suptitle('Forces sidechain-sidechain interactions',fontweight ='bold', fontsize=14)
+
+    for i in range(20):
+        axs[-1,i].set_xlabel(aas[i], fontweight ='bold',fontsize=11)
+        axs[i,0].set_ylabel(aas[i], fontweight ='bold', fontsize=11, rotation=0)
+
+
 
 
     # Distances
@@ -69,7 +75,10 @@ with torch.no_grad():
             labelbottom=False)
 
             if j > i:
-                pass
+                axs[i,j].spines['bottom'].set_color('white')
+                axs[i,j].spines['top'].set_color('white')
+                axs[i,j].spines['right'].set_color('white')
+                axs[i,j].spines['left'].set_color('white')
             else:
                 for dist in distances:
                     force = model(atom1[None,:], atom2[None,:], torch.tensor([dist, 1])[None,:].to(device).float())

@@ -3,6 +3,7 @@ import torch.nn as nn
 from torch.utils.data import Dataset
 from torch.nn.functional import normalize
 import pdb
+from equimodel import EGNN_vel
 
 from random import shuffle
 
@@ -20,7 +21,7 @@ trained_model_file = os.path.join(model_dir, "test_model2.pt")
 train_proteins = [l.rstrip() for l in open(os.path.join(dataset_dir, "train.txt"))]
 val_proteins   = [l.rstrip() for l in open(os.path.join(dataset_dir, "val.txt"  ))]
 
-device = "cuda:2"
+device = "cuda:5"
 
 atoms = ["N", "CA", "C", "cent"]
 
@@ -52,14 +53,7 @@ class Simulator(nn.Module):
 		super(Simulator, self).__init__()
 		from egnn_pytorch.egnn_pytorch import EGNN_Network
 
-		self.net = EGNN_Network(
-			num_tokens = 80,
-			dim = 128,
-			depth = 4,
-			fourier_features = 2,
-    		norm_coors = True,
-			num_nearest_neighbors = 20
-		)
+		self.net = EGNN_vel(24, 8, 64)
 
 	def forward(self, coords, feats, res_numbers, masses, seq,
 				radius, n_steps, timestep, temperature, animation, device):
@@ -73,14 +67,32 @@ class Simulator(nn.Module):
 		randn_coords = coords + vels * timestep * n_steps
 		loss, passed = rmsd(randn_coords, coords)		
 
-		coords = randn_coords.unsqueeze(0)
+		coords = randn_coords
 
 		for i in range(n_steps):
-
-			feats_out, coords = self.net(feats, coords) # (1, 1024, 32), (1, 1024, 3)
-
+			print(feats.shape)
+			print(feats)
+			edges = knn(coords, 15)
+			edge_attr = edge_attributes(coords, edges, res_numbers)
+			coords, vels = self.net(feats.unsqueeze(0), coords, edges, vels, edge_attr) 
 
 		return coords[0], loss
+
+def edge_attributes(coords, edges, res_numbers):
+	senders, receivers = edges[0], edges[1]
+	diffs = coords[senders] - coords[receivers]
+	dists = diffs.norm(dim=1)
+	norm_diffs = diffs / dists.clamp(min=0.01).unsqueeze(1)
+
+	# Calc sequence seperation
+	seq_sep = abs(res_numbers[senders] - res_numbers[receivers])/5
+	mask = seq_sep > 1
+	seq_sep[mask] = 1
+
+	# Concat edge features
+	edges = torch.cat([dists, seq_sep], dim=1)
+
+	return edges
 
 def knn(coords, k):
 	"""
@@ -95,7 +107,10 @@ def knn(coords, k):
 
 	idx = pairwise_distance_ij.argKmin(K=k, axis=1)  # (N, K)
 
-	return idx
+	senders = idx[:,0].repeat_interleave(k-1)
+	receivers = idx[:,1:].reshape(N*(k-1))
+
+	return [senders, receivers]
 
 def get_features(fp, device):
 
@@ -108,17 +123,16 @@ def get_features(fp, device):
 								[0,0,0,1]])
 	one_hot_atoms = one_hot_atoms.repeat(len(seq), 1)
 
-	one_hot_seq = torch.zeros(1, 4*len(seq))
+	one_hot_seq = torch.zeros(len(seq)*4, 20)
 	for i, aa in enumerate(seq):
-		for atom in range(4):
-			index = aas.index(aa)
-			one_hot_seq[0, (i*4) + atom] = (index*4) + atom
+		index = aas.index(aa)
+		one_hot_seq[i*4:(i+1)*4, index] = 1
 
 	res_numbers = torch.cat([torch.ones(4,1)*i for i in range(len(seq))])
 
-	node_f = one_hot_seq
+	node_f = torch.cat([one_hot_atoms, one_hot_seq], dim=1)
 
-	return native_coords.to(device), node_f.to(device).int(), res_numbers.to(device), masses.to(device), seq
+	return native_coords.to(device), node_f.to(device), res_numbers.to(device), masses.to(device), seq
 
 if __name__ == "__main__":
 

@@ -16,12 +16,13 @@ with torch.no_grad():
     print(model)
 
     pairs = [[0,1], [1,2], [0,2]]
-    fig, axes = plt.subplots(3,2, figsize=(12, 16))
+    true_dists = [1.46, 1.51, 1.32]
+    fig, axes = plt.subplots(3,2, figsize=(10, 12))
 
 
     for i in range(3):
 
-        distances = torch.tensor(np.arange(0,2,0.1)).to(device).float()
+        distances = torch.tensor(np.arange(0,5,0.1)).to(device).float()
 
         atom = torch.zeros(24).to(device)
         atom1 = atom.clone()
@@ -46,9 +47,8 @@ with torch.no_grad():
 
         axes[i,0].plot(distances.cpu(), forces)
         axes[i,0].axhline(0, color='black')
-        axes[i,0].axvline(1.51, color='red')
+        axes[i,0].axvline(true_dists[i], color='red')
         axes[i,0].set_ylabel("Force")
-        axes[i,0].set_ylim(-1,1)
         axes[i,0].set_xlabel("Bond distance (Å)")
         axes[i,0].text(1.7, 5, 'True distsance', color='red')
         axes[i,0].set_title('Force between Alanine R-Ca atoms')
@@ -63,10 +63,10 @@ with torch.no_grad():
         print(pots)
         print(len(pots))
         axes[i,1].plot(distances.cpu(), pots)
-        axes[i,1].axvline(1.51, color='red')
+        axes[i,1].axvline(true_dists[i], color='red')
         axes[i,1].set_ylabel("Potential energy")
         axes[i,1].set_xlabel("Bond distance (Å)")
-        axes[i,1].text(1.7, -20, 'True distance', color='red')
+        axes[i,1].text(1.7, -2000, 'True distance', color='red')
         axes[i,1].set_title('Potential between Alanine R-Ca atoms')
     plt.savefig('dists.png')
  

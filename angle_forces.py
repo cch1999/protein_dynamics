@@ -13,38 +13,48 @@ with torch.no_grad():
 
     model = model.angle_forces
 
-    atom = torch.zeros(24).to(device).double()
-    atom[[1,4]] = 1
-    print(atom)
-    forces = []
-    angles = np.arange(0, 6.2, 0.01)
-    for i in angles:
-        force = model(atom[None,None,:].float(), torch.tensor(i)[None, None].to(device).float())
-        print(force)
-        forces.append(force.item())
-    
-    fig, (ax1, ax2) = plt.subplots(1,2, figsize=(12, 4))
 
-    ax1.plot(angles, forces)
-    ax1.axhline(0, color='black')
-    ax1.axvline(1.94, color='red')
-    ax1.set_ylabel("Force")
-    ax1.set_xlabel("C Bond angle (radians)")
-    ax1.text(2.1, 20, 'C bond angle', color='red')
-    ax1.set_title('Force applied to atoms in -C- angle')
-    
-    pots = []
-    y = 0
 
-    for i in range(len(forces)):
-        print(i)
-        y += -forces[i]
-        pots.append(y)
-    ax2.plot(angles,pots)
-    ax2.axvline(1.94, color='red')
-    ax2.set_ylabel("Potential energy")
-    ax2.set_xlabel("C Bond angle (radians)")
-    ax2.text(2.1, 20, 'C bond angle', color='red')
-    ax2.set_title('Potential in -C- angle')
+    fig, axes = plt.subplots(3,2, figsize=(10, 12))
+
+    atoms = [0,1,2]
+    angles = [2.12 ,1.94, 2.02]
+
+    for j, angle in zip(atoms, angles):
+
+        atom = torch.zeros(24).to(device).double()
+        atom[[j,4]] = 1
+        print(atom)
+        forces = []
+        angles = np.arange(0, 6.2, 0.01)
+            
+        for i in angles:
+            force = model(atom[None,None,:].float(), torch.tensor(i)[None, None].to(device).float())
+            print(force)
+            forces.append(force.item())
+
+
+        
+
+        axes[j,0].plot(angles, forces)
+        axes[j,0].axhline(0, color='black')
+        axes[j,0].axvline(angle, color='red')
+        axes[j,0].set_ylabel("Force")
+        axes[j,0].set_xlabel("Bond angle (radians)")
+        axes[j,0].text(2.1, 20, 'True angle', color='red')
+        axes[j,0].set_title('Force applied to atoms in -C- angle')
+        
+        pots = []
+        y = 0
+
+        for i in range(len(forces)):
+            y += -forces[i]
+            pots.append(y)
+        axes[j,1].plot(angles,pots)
+        axes[j,1].axvline(angle, color='red')
+        axes[j,1].set_ylabel("Potential energy")
+        axes[j,1].set_xlabel("C Bond angle (radians)")
+        axes[j,1].text(2.1, 20, 'True angle', color='red')
+        axes[j,1].set_title('Potential in -C- angle')
     plt.savefig('c_ang.png')
     
