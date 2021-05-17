@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from model6 import Simulator, get_features
+from model7 import Simulator, get_features
 import matplotlib.pyplot as plt
 
 print(torch.cuda.get_device_name(6))
@@ -28,7 +28,7 @@ centroid_dists = {
 device = "cuda:6"
 
 model = Simulator(50, 128, 1).to(device)
-model.load_state_dict(torch.load("models/current.pt", map_location=device))
+model.load_state_dict(torch.load("models/current_potpyt.pt", map_location=device))
 model.eval()
 
 with torch.no_grad():
