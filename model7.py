@@ -1,16 +1,20 @@
+from random import shuffle
+from tqdm import tqdm
+import os
+
+# PyTorch
 import torch
 import torch.nn as nn
 from torch.utils.data import Dataset
 from torch.nn.functional import normalize
-import pdb
-
-from random import shuffle
-
-from utils import MLP, read_input_file, _compute_connectivity, rmsd, save_structure
-import matplotlib.pyplot as plt
-import os
 from pykeops.torch import LazyTensor
-from tqdm import tqdm
+
+import matplotlib.pyplot as plt
+
+from utils import read_input_file, rmsd, save_structure
+from variables import *
+
+#----Directories----#
 
 model_dir = os.path.dirname(os.path.realpath(__file__))
 dataset_dir = os.path.join(model_dir, "datasets")
@@ -20,29 +24,7 @@ trained_model_file = os.path.join(model_dir, "test_model2.pt")
 train_proteins = [l.rstrip() for l in open(os.path.join(dataset_dir, "train.txt"))]
 val_proteins   = [l.rstrip() for l in open(os.path.join(dataset_dir, "val.txt"  ))]
 
-device = "cuda:5"
-
-#torch.set_num_threads(12)
-
-atoms = ["N", "CA", "C", "cent"]
-
-# Last value is the number of atoms in the next residue
-angles = [
-	("N", "CA", "C"   , 0), ("CA", "C" , "N"   , 1), ("C", "N", "CA", 2),
-	("N", "CA", "cent", 0), ("C" , "CA", "cent", 0),
-]
-
-# Last value is the number of atoms in the next residue
-dihedrals = [
-	("C", "N", "CA", "C"   , 3), ("N"   , "CA", "C", "N", 1), ("CA", "C", "N", "CA", 2),
-	("C", "N", "CA", "cent", 3), ("cent", "CA", "C", "N", 1),
-]
-
-aas = [
-	"A", "R", "N", "D", "C", "E", "Q", "G", "H", "I",
-	"L", "K", "M", "F", "P", "S", "T", "W", "Y", "V",
-]
-n_aas = len(aas)
+device = "cuda:1"
 
 class ProteinDataset(Dataset):
     def __init__(self, pdbids, coord_dir, device="cpu"):
@@ -57,6 +39,8 @@ class ProteinDataset(Dataset):
     def __getitem__(self, index):
         fp = os.path.join(self.coord_dir, self.pdbids[index] + ".txt")
         return get_features(fp, device=self.device)
+
+#----Sub-models----#
 
 class DistanceForces(nn.Module):
 	"""
@@ -74,10 +58,6 @@ class DistanceForces(nn.Module):
 
 		self.model = nn.Sequential(
 			nn.Linear((24)+2, hidden_size),
-			nn.ReLU(),
-			nn.Linear(hidden_size, hidden_size),
-			nn.ReLU(),
-			nn.Linear(hidden_size, hidden_size),
 			nn.ReLU(),
 			nn.Linear(hidden_size, hidden_size),
 			nn.ReLU(),
@@ -148,6 +128,7 @@ class DihedralForces(nn.Module):
 
 		return self.model(messages)
 
+#----Main model----#
 class Simulator(nn.Module):
 	def __init__(self, input_size, hidden_size, output_size):
 		super(Simulator, self).__init__()
@@ -188,16 +169,14 @@ class Simulator(nn.Module):
 			seq_sep[mask] = 1
 
 			# Concat edge features
-			edges = torch.cat([dists.unsqueeze(1), seq_sep], dim=1)
+			edges1 = torch.cat([dists.unsqueeze(1)-0.01, seq_sep], dim=1)
+			edges2 = torch.cat([dists.unsqueeze(1)+0.01, seq_sep], dim=1)
 
 			# Compute forces using MLP
-			forces = self.distance_forces(node_f[senders], node_f[receivers], edges)
-			print(forces)
-			print(forces.shape)
-			print(type(forces))
-			exit()
+			forces = 0.5 * (self.distance_forces(node_f[senders], node_f[receivers], edges1) - self.distance_forces(node_f[senders], node_f[receivers], edges2))
+
 			forces = forces * norm_diffs
-			total_forces = forces.view(n_atoms, k, 3).sum(1)/100
+			total_forces = forces.view(n_atoms, k, 3).sum(1)
 			
 			batch_size = 1
 			atom_types = node_f.view(batch_size, n_res, len(atoms), 24)
@@ -228,7 +207,7 @@ class Simulator(nn.Module):
 				elif ai == 2:
 					central_atom_types = atom_types[:,1:,0,:]
 
-				angle_forces = self.angle_forces(central_atom_types, angs)
+				angle_forces = 0.5 * (self.angle_forces(central_atom_types, angs-0.01) - self.angle_forces(central_atom_types, angs+0.01))
 
 				cross_ba_bc = torch.cross(ba, bc, dim=2)
 				fa = angle_forces * normalize(torch.cross( ba, cross_ba_bc, dim=2), dim=2) / ba_norms.unsqueeze(2)
@@ -296,7 +275,7 @@ class Simulator(nn.Module):
 					torch.sum(cross_ab_bc * cross_bc_cd, dim=2)
 				)
 
-				dih_forces = self.dihedral_forces(atom1, atom2, atom3, atom4, dihs)
+				dih_forces = 0.5 * (self.dihedral_forces(atom1, atom2, atom3, atom4, dihs-0.01) - self.dihedral_forces(atom1, atom2, atom3, atom4, dihs+0.01))
 
 				fa = dih_forces * normalize(-cross_ab_bc, dim=2) / ab.norm(dim=2).unsqueeze(2)
 				fd = dih_forces * normalize( cross_bc_cd, dim=2) / cd.norm(dim=2).unsqueeze(2)
@@ -352,9 +331,10 @@ def knn(coords, k):
 
 	return idx
 
+	# TODO move to utils
 def get_features(fp, device):
 
-
+	# TODO remove inters constructions
 	native_coords, inters_ang, inters_dih, masses, seq = read_input_file(fp)
 
 	one_hot_atoms = torch.tensor([[1,0,0,0],
@@ -374,29 +354,32 @@ def get_features(fp, device):
 
 	return native_coords.to(device), node_f.to(device), res_numbers.to(device), masses.to(device), seq
 
+def plot_loss(losses, epoch):
+	plt.plot(losses)
+	plt.ylabel("Loss - RMSD (A)")
+	plt.xlabel("Batches")
+	plt.title(f'No. epochs = {epoch}')
+	plt.savefig('current_loss.png')
+
 if __name__ == "__main__":
 
 	saving = 25
-
-	data_dir = "protein_data/train_val/"
-	data = os.listdir(data_dir)
+	n_epochs = 20
+	n_steps = 400
 
 	model = Simulator(50, 128, 1).to(device)
-	model.load_state_dict(torch.load("models/current.pt", map_location=device))
+	#model.load_state_dict(torch.load("models/current_pot.pt", map_location=device))
 
-
-	optimizer = torch.optim.Adam(model.parameters(), lr=0.00005)
-
-
+	optimizer = torch.optim.Adam(model.parameters(), lr=0.005)
 	losses = []
 
 	pytorch_total_params = sum(p.numel() for p in model.parameters())
-	print(pytorch_total_params)
+	print("Number of parameters:", pytorch_total_params)
 
 	train_set = ProteinDataset(train_proteins, train_val_dir, device=device)
 	val_set   = ProteinDataset(val_proteins  , train_val_dir, device=device)
 
-	for i in range(20):
+	for i in range(n_epochs):
 		print(f"Starting Epoch {i}:")
 
 		train_inds = list(range(len(train_set)))
@@ -411,7 +394,7 @@ if __name__ == "__main__":
 
 			model.train()
 			out, basic_loss = model(coords, node_f, res_numbers, masses, seq, 10, 
-							n_steps=500, timestep=0.02, temperature=0.03,
+							n_steps=n_steps, timestep=0.02, temperature=0.03,
 							animation=None, device=device)
 			loss, passed = rmsd(out, coords)
 			loss_log = torch.log(1.0 + loss)
@@ -426,12 +409,8 @@ if __name__ == "__main__":
 			print("-Loss diff:", round(loss.item() - basic_loss.item(), 3))
 
 			if batch % saving == 0:
-				torch.save(model.state_dict(), os.path.join(model_dir, f"models/current.pt"))
-				plt.plot(losses)
-				plt.ylabel("Loss - RMSD (A)")
-				plt.xlabel("Batches")
-				plt.title(f'No. epochs = {i+1}')
-				plt.savefig('current_loss.png')
+				torch.save(model.state_dict(), os.path.join(model_dir, f"models/current_pot.pt"))
+				plot_loss(losses, i)
 
 
 		model.eval()
@@ -443,13 +422,6 @@ if __name__ == "__main__":
 							animation=False, device=device)
 		
 
-		torch.save(model.state_dict(), os.path.join(model_dir, f"models/model_dih{i}.pt"))
+		torch.save(model.state_dict(), os.path.join(model_dir, f"models/pot{i}.pt"))
 
 	
-		plt.plot(losses)
-		plt.xlim(0)
-		plt.ylabel("Loss - RMSD (A)")
-		plt.xlabel("Epoch")
-		plt.title(f'No. epochs = {i+1}')
-		plt.legend()
-		plt.savefig('with_angles.png')

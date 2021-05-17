@@ -1,13 +1,13 @@
 import torch
 import numpy as np
-from model6 import Simulator
+from model7 import Simulator
 import sys
 import matplotlib.pyplot as plt
 
 device = "cuda:6"
 
 model = Simulator(50, 128, 1).to(device)
-model.load_state_dict(torch.load("models/current.pt", map_location=device))
+model.load_state_dict(torch.load("models/current_pot.pt", map_location=device))
 model.eval()
 
 with torch.no_grad():
@@ -17,7 +17,7 @@ with torch.no_grad():
 
     pairs = [[0,1], [1,2], [0,2]]
     true_dists = [1.46, 1.51, 1.32]
-    fig, axes = plt.subplots(3,2, figsize=(10, 12))
+    fig, axes = plt.subplots(1,3, figsize=(12, 4))
 
 
     for i in range(3):
@@ -45,28 +45,13 @@ with torch.no_grad():
             forces.append(force.item())
 
 
-        axes[i,0].plot(distances.cpu(), forces)
-        axes[i,0].axhline(0, color='black')
-        axes[i,0].axvline(true_dists[i], color='red')
-        axes[i,0].set_ylabel("Force")
-        axes[i,0].set_xlabel("Bond distance (Å)")
-        axes[i,0].text(1.7, 5, 'True distsance', color='red')
-        axes[i,0].set_title('Force between Alanine R-Ca atoms')
-        
-        pots = []
-        y = 0
-        print(forces)
-        for force in forces:
-            print(i)
-            y += -force
-            pots.append(y)
-        print(pots)
-        print(len(pots))
-        axes[i,1].plot(distances.cpu(), pots)
-        axes[i,1].axvline(true_dists[i], color='red')
-        axes[i,1].set_ylabel("Potential energy")
-        axes[i,1].set_xlabel("Bond distance (Å)")
-        axes[i,1].text(1.7, -2000, 'True distance', color='red')
-        axes[i,1].set_title('Potential between Alanine R-Ca atoms')
+        axes[i].plot(distances.cpu(), forces)
+        axes[i].axhline(0, color='black')
+        axes[i].axvline(true_dists[i], color='red')
+        axes[i].set_ylabel("Potential")
+        axes[i].set_xlabel("Bond distance (Å)")
+        axes[i].text(1.7, 5, 'True distsance', color='red')
+        axes[i].set_title('Potential between Alanine R-Ca atoms')
+
     plt.savefig('dists.png')
  

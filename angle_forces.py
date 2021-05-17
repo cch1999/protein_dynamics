@@ -1,12 +1,12 @@
 import torch
 import numpy as np
-from model6 import Simulator, get_features
+from model7 import Simulator, get_features
 import matplotlib.pyplot as plt
 
 device = "cuda:6"
 
 model = Simulator(50, 128, 1).to(device)
-model.load_state_dict(torch.load("models/current.pt", map_location=device))
+model.load_state_dict(torch.load("models/current_pot.pt", map_location=device))
 model.eval()
 
 with torch.no_grad():
