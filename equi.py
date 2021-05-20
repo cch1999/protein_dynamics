@@ -21,7 +21,7 @@ trained_model_file = os.path.join(model_dir, "test_model2.pt")
 train_proteins = [l.rstrip() for l in open(os.path.join(dataset_dir, "train.txt"))]
 val_proteins   = [l.rstrip() for l in open(os.path.join(dataset_dir, "val.txt"  ))]
 
-device = "cuda:5"
+device = "cuda:2"
 
 atoms = ["N", "CA", "C", "cent"]
 
@@ -53,7 +53,7 @@ class Simulator(nn.Module):
 		super(Simulator, self).__init__()
 		from egnn_pytorch.egnn_pytorch import EGNN_Network
 
-		self.net = EGNN_vel(24, 8, 64)
+		self.net = EGNN_vel(24, 8, 2)
 
 	def forward(self, coords, feats, res_numbers, masses, seq,
 				radius, n_steps, timestep, temperature, animation, device):
@@ -70,11 +70,9 @@ class Simulator(nn.Module):
 		coords = randn_coords
 
 		for i in range(n_steps):
-			print(feats.shape)
-			print(feats)
 			edges = knn(coords, 15)
 			edge_attr = edge_attributes(coords, edges, res_numbers)
-			coords, vels = self.net(feats.unsqueeze(0), coords, edges, vels, edge_attr) 
+			coords, vels = self.net(feats, coords, edges, vels, edge_attr) 
 
 		return coords[0], loss
 
@@ -90,8 +88,9 @@ def edge_attributes(coords, edges, res_numbers):
 	seq_sep[mask] = 1
 
 	# Concat edge features
-	edges = torch.cat([dists, seq_sep], dim=1)
+	edges = torch.cat([dists.unsqueeze(1), seq_sep], dim=-1)
 
+	# Add batch dimension
 	return edges
 
 def knn(coords, k):

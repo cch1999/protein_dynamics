@@ -11,7 +11,7 @@ from pykeops.torch import LazyTensor
 
 import matplotlib.pyplot as plt
 
-from utils import read_input_file, rmsd, save_structure
+from utils import read_input_file, rmsd, save_structure, MLP, ResNet
 from variables import *
 
 #----Directories----#
@@ -24,7 +24,7 @@ trained_model_file = os.path.join(model_dir, "test_model2.pt")
 train_proteins = [l.rstrip() for l in open(os.path.join(dataset_dir, "train.txt"))]
 val_proteins   = [l.rstrip() for l in open(os.path.join(dataset_dir, "val.txt"  ))]
 
-device = "cuda:1"
+device = "cuda:5"
 
 class ProteinDataset(Dataset):
     def __init__(self, pdbids, coord_dir, device="cpu"):
@@ -52,27 +52,13 @@ class DistanceForces(nn.Module):
 	Input dim = 50 (24*2 + 2)
 	Output dim = 1 (a scalar force)
 	"""
-	def __init__(self, input_size, hidden_size, output_size):
+	def __init__(self, input_size, hidden_size, num_hidden_layers, output_size):
 		super(DistanceForces, self).__init__()
 
-
-		self.model = nn.Sequential(
-			nn.Linear((24)+2, hidden_size),
-			nn.ReLU(),
-			nn.Linear(hidden_size, hidden_size),
-			nn.ReLU(),
-			nn.Linear(hidden_size, hidden_size),
-			nn.ReLU(),
-			nn.Linear(hidden_size, hidden_size),
-			nn.ReLU(),
-			nn.Linear(hidden_size, hidden_size),
-			nn.ReLU(),
-			nn.Linear(hidden_size, output_size))
+		self.model = ResNet(input_size, hidden_size, num_hidden_layers, output_size)
 
 	def forward(self, atom1, atom2, edges):
-
 		messages = torch.cat([atom1+atom2, edges], dim=1)
-
 		return self.model(messages)
 
 class AngleForces(nn.Module):
@@ -84,21 +70,14 @@ class AngleForces(nn.Module):
 	Input dim = 25 (24 + 1)
 	Output dim = 1 (a scalar force)
 	"""
-	def __init__(self, input_size, hidden_size, output_size):
+	def __init__(self, input_size, hidden_size, num_hidden_layers, output_size):
 		super(AngleForces, self).__init__()
 
-		self.model = nn.Sequential(
-			nn.Linear(input_size, hidden_size),
-			nn.ReLU(),
-			nn.Linear(hidden_size, hidden_size),
-			nn.ReLU(),
-			nn.Linear(hidden_size, hidden_size),
-			nn.ReLU(),
-			nn.Linear(hidden_size, output_size))
+		self.model = ResNet(input_size, hidden_size, num_hidden_layers, output_size)
 
-	def forward(self, central_atom, angles):
-		messages = torch.cat([central_atom, angles[:,:,None]], dim=2)
 
+	def forward(self, atom1, atom2, atom3, angles):
+		messages = torch.cat([atom1, atom2, atom3, angles[:,:,None]], dim=2)
 		return self.model(messages)
 
 class DihedralForces(nn.Module):
@@ -110,22 +89,13 @@ class DihedralForces(nn.Module):
 	Input dim = 25 (24 + 1)
 	Output dim = 1 (a scalar force)
 	"""
-	def __init__(self, input_size, hidden_size, output_size):
+	def __init__(self, input_size, hidden_size, num_hidden_layers, output_size):
 		super(DihedralForces, self).__init__()
 
-		self.model = nn.Sequential(
-			nn.Linear(input_size, hidden_size),
-			nn.ReLU(),
-			nn.Linear(hidden_size, hidden_size),
-			nn.ReLU(),
-			nn.Linear(hidden_size, hidden_size),
-			nn.ReLU(),
-			nn.Linear(hidden_size, output_size))
+		self.model = ResNet(input_size, hidden_size, num_hidden_layers, output_size)
 
 	def forward(self, atom1, atom2, atom3, atom4, dihedrals):
-
 		messages = torch.cat([atom1, atom2, atom3, atom4, dihedrals[:,:,None]], dim=2)
-
 		return self.model(messages)
 
 #----Main model----#
@@ -133,9 +103,9 @@ class Simulator(nn.Module):
 	def __init__(self, input_size, hidden_size, output_size):
 		super(Simulator, self).__init__()
 
-		self.distance_forces = DistanceForces(50, 128, 1)
-		self.angle_forces = AngleForces(24+1, 128, 1)
-		self.dihedral_forces = DihedralForces(24*4+1, 128, 1)
+		self.distance_forces = DistanceForces(24+2, 100, 15, 1)
+		self.angle_forces = AngleForces(24*3+1, 128, 3, 1)
+		self.dihedral_forces = DihedralForces(24*4+1, 128, 5, 1)
 
 	def forward(self, coords, node_f, res_numbers, masses, seq,
 				radius, n_steps, timestep, temperature, animation, device):
@@ -173,7 +143,7 @@ class Simulator(nn.Module):
 			edges2 = torch.cat([dists.unsqueeze(1)+0.01, seq_sep], dim=1)
 
 			# Compute forces using MLP
-			forces = 0.5 * (self.distance_forces(node_f[senders], node_f[receivers], edges1) - self.distance_forces(node_f[senders], node_f[receivers], edges2))
+			forces = 50 * (self.distance_forces(node_f[senders], node_f[receivers], edges1) - self.distance_forces(node_f[senders], node_f[receivers], edges2))
 
 			forces = forces * norm_diffs
 			total_forces = forces.view(n_atoms, k, 3).sum(1)
@@ -200,14 +170,28 @@ class Simulator(nn.Module):
 				bc_norms = bc.norm(dim=2)
 				angs = torch.acos((ba * bc).sum(dim=2) / (ba_norms * bc_norms))
 				# Get central atom properties
-				if ai == 0 or ai == 3 or ai == 4:
-					central_atom_types = atom_types[:,:,1,:]
-				elif ai == 1:
-					central_atom_types = atom_types[:,:-1,2,:]
-				elif ai == 2:
-					central_atom_types = atom_types[:,1:,0,:]
+				if ai == 0:
+					atom1 = atom_types[:,:,0,:]
+					atom2 = atom_types[:,:,1,:]
+					atom3 = atom_types[:,:,2,:]
+				if ai == 1:
+					atom1 = atom_types[:,:-1,1,:]
+					atom2 = atom_types[:,:-1,2,:]
+					atom3 = atom_types[:,1:,0,:]
+				if ai == 2:
+					atom1 = atom_types[:,:-1,2,:]
+					atom2 = atom_types[:,1:,0,:]
+					atom1 = atom_types[:,1:,1,:]
+				if ai == 3:
+					atom1 = atom_types[:,:,0,:]
+					atom2 = atom_types[:,:,1,:]
+					atom3 = atom_types[:,:,3,:]
+				if ai == 4:
+					atom1 = atom_types[:,:,2,:]
+					atom2 = atom_types[:,:,1,:]
+					atom3 = atom_types[:,:,3,:]
 
-				angle_forces = 0.5 * (self.angle_forces(central_atom_types, angs-0.01) - self.angle_forces(central_atom_types, angs+0.01))
+				angle_forces = 50 * (self.angle_forces(atom1, atom2, atom3, angs-0.01) - self.angle_forces(atom1, atom2, atom3, angs+0.01))
 
 				cross_ba_bc = torch.cross(ba, bc, dim=2)
 				fa = angle_forces * normalize(torch.cross( ba, cross_ba_bc, dim=2), dim=2) / ba_norms.unsqueeze(2)
@@ -275,7 +259,7 @@ class Simulator(nn.Module):
 					torch.sum(cross_ab_bc * cross_bc_cd, dim=2)
 				)
 
-				dih_forces = 0.5 * (self.dihedral_forces(atom1, atom2, atom3, atom4, dihs-0.01) - self.dihedral_forces(atom1, atom2, atom3, atom4, dihs+0.01))
+				dih_forces = 50 * (self.dihedral_forces(atom1, atom2, atom3, atom4, dihs-0.01) - self.dihedral_forces(atom1, atom2, atom3, atom4, dihs+0.01))
 
 				fa = dih_forces * normalize(-cross_ab_bc, dim=2) / ab.norm(dim=2).unsqueeze(2)
 				fd = dih_forces * normalize( cross_bc_cd, dim=2) / cd.norm(dim=2).unsqueeze(2)
@@ -363,14 +347,17 @@ def plot_loss(losses, epoch):
 
 if __name__ == "__main__":
 
+	# Simulations parameters
 	saving = 25
 	n_epochs = 20
-	n_steps = 400
+	n_steps = 180
+	temperature = 0.05
+	timestep = 0.05
 
 	model = Simulator(50, 128, 1).to(device)
-	#model.load_state_dict(torch.load("models/current_pot.pt", map_location=device))
+	model.load_state_dict(torch.load("models/current_pot.pt", map_location=device))
 
-	optimizer = torch.optim.Adam(model.parameters(), lr=0.005)
+	optimizer = torch.optim.Adam(model.parameters(), lr=0.0005)
 	losses = []
 
 	pytorch_total_params = sum(p.numel() for p in model.parameters())
@@ -394,7 +381,7 @@ if __name__ == "__main__":
 
 			model.train()
 			out, basic_loss = model(coords, node_f, res_numbers, masses, seq, 10, 
-							n_steps=n_steps, timestep=0.02, temperature=0.03,
+							n_steps=n_steps, timestep=timestep, temperature=temperature,
 							animation=None, device=device)
 			loss, passed = rmsd(out, coords)
 			loss_log = torch.log(1.0 + loss)

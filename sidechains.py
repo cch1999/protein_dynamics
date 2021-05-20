@@ -28,14 +28,14 @@ centroid_dists = {
 device = "cuda:6"
 
 model = Simulator(50, 128, 1).to(device)
-model.load_state_dict(torch.load("models/current_potpyt.pt", map_location=device))
+model.load_state_dict(torch.load("models/current_pot.pt", map_location=device))
 model.eval()
 
 with torch.no_grad():
     coords, node_f, res_numbers, masses, seq = get_features("protein_data/example/1CRN.txt", device=device)
 
     fig, axs = plt.subplots(5,4, figsize=(11, 9))
-    fig.suptitle('Forces between Ca atoms and side chains centroids - orange line is optimum distance')
+    fig.suptitle('Learned potentials between Ca atoms and side chains centroids - orange line is optimum distance')
 
 
     # Distances
@@ -72,7 +72,7 @@ with torch.no_grad():
         axs[i//4,i%4].set_xlim(1,max_dist)
 
     for ax in axs.flat:
-        ax.set(xlabel='Distance (Å)', ylabel='Force (arbitary units)')
+        ax.set(xlabel='Distance (Å)', ylabel='Energy')
     for ax in axs.flat:
         ax.label_outer()
     fig.tight_layout()

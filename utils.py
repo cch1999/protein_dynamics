@@ -199,18 +199,48 @@ class MLP(nn.Module):
 	def __init__(self, input_size: int, hidden_size: int, num_hidden_layers: int, output_size: int):
 		super(MLP, self).__init__()
 
-		layers = [nn.Linear(input_size, hidden_size)]
+		layers = [nn.Linear(input_size, hidden_size), nn.ReLU()]
 
-		for i in range(num_hidden_layers - 1):
+		for _ in range(num_hidden_layers):
 			layers.append(nn.Linear(hidden_size, hidden_size))
+			layers.append(nn.ReLU())
 		
 		layers.append(nn.Linear(hidden_size, output_size))
-		self.layers = layers
+		self.model = nn.Sequential(*layers)
 
 	def forward(self, x):
-		for layer in self.layers:
-			x = layer(x)
-		return x
+		return self.model(x)
+
+class ResNet(nn.Module):
+"""Builds an ResNet."""
+def __init__(self, input_size: int, hidden_size: int, num_hidden_layers: int, output_size: int):
+	super(MLP, self).__init__()
+
+	layers = [nn.Linear(input_size, hidden_size), nn.ReLU()]
+
+	for _ in range(num_hidden_layers):
+		layers.append(ResBlock(hidden_size))
+	
+	layers.append(nn.Linear(hidden_size, output_size))
+
+	self.model = nn.Sequential(*layers)
+
+def forward(self, x):
+	return self.model(x)
+
+class ResBlock(nn.Module):
+"""Builds an ResBlock."""
+def __init__(self, input_size: int):
+	super(MLP, self).__init__()
+
+	self.fc = nn.Linear(input_size, input_size)
+	self.relu = nn.ReLU()
+
+def forward(self, x):
+	residual = x
+	x = self.fc(x)
+	x = self.relu(x)
+	return x + residual
 
 def MLP_with_layernorm(input_size: int, hidden_size: int, 
 						num_hidden_layers: int, output_size: int):

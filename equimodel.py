@@ -59,6 +59,8 @@ class E_GCL(nn.Module):
         if edge_attr is None:  # Unused.
             out = torch.cat([source, target, radial], dim=1)
         else:
+            print(edge_attr.shape)
+            print(source.shape)
             out = torch.cat([source, target, radial, edge_attr], dim=1)
         out = self.edge_mlp(out)
         if self.attention:
