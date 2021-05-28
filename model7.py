@@ -5,14 +5,12 @@ import os
 # PyTorch
 import torch
 import torch.nn as nn
-from torch.utils.data import Dataset
 from torch.nn.functional import normalize
-from pykeops.torch import LazyTensor
 
-import matplotlib.pyplot as plt
-
-from utils import read_input_file, rmsd, save_structure, MLP, ResNet
-from variables import *
+# Project functions
+from utils.processing import get_features, rmsd, save_structure, knn, plot_loss
+from utils.variables import *
+from utils.nn import MLP, ResNet, ProteinDataset
 
 #----Directories----#
 
@@ -25,20 +23,6 @@ train_proteins = [l.rstrip() for l in open(os.path.join(dataset_dir, "train.txt"
 val_proteins   = [l.rstrip() for l in open(os.path.join(dataset_dir, "val.txt"  ))]
 
 device = "cuda:5"
-
-class ProteinDataset(Dataset):
-    def __init__(self, pdbids, coord_dir, device="cpu"):
-        self.pdbids = pdbids
-        self.coord_dir = coord_dir
-        self.set_size = len(pdbids)
-        self.device = device
-
-    def __len__(self):
-        return self.set_size
-
-    def __getitem__(self, index):
-        fp = os.path.join(self.coord_dir, self.pdbids[index] + ".txt")
-        return get_features(fp, device=self.device)
 
 #----Sub-models----#
 
@@ -108,7 +92,7 @@ class Simulator(nn.Module):
 		self.dihedral_forces = DihedralForces(24*4+1, 128, 5, 1)
 
 	def forward(self, coords, node_f, res_numbers, masses, seq,
-				radius, n_steps, timestep, temperature, animation, device):
+				k, n_steps, timestep, temperature, animation, device):
 
 		n_atoms = coords.shape[0]
 		n_res = n_atoms // len(atoms)
@@ -123,7 +107,6 @@ class Simulator(nn.Module):
 
 			coords = coords + vels * timestep + 0.5 * accs_last * timestep * timestep
 
-			k = 15
 			idx = knn(coords, k+1)
 			senders = idx[:,0].repeat_interleave(k)
 			receivers = idx[:,1:].reshape(n_atoms*k)
@@ -300,50 +283,7 @@ class Simulator(nn.Module):
 
 		return coords, loss
 
-def knn(coords, k):
-	"""
-	Finds the k-nearest neibours
-	"""
 
-	N, D = coords.shape
-	xyz_i = LazyTensor(coords[:, None, :])
-	xyz_j = LazyTensor(coords[None, :, :])
-
-	pairwise_distance_ij = ((xyz_i - xyz_j) ** 2).sum(-1)
-
-	idx = pairwise_distance_ij.argKmin(K=k, axis=1)  # (N, K)
-
-	return idx
-
-	# TODO move to utils
-def get_features(fp, device):
-
-	# TODO remove inters constructions
-	native_coords, inters_ang, inters_dih, masses, seq = read_input_file(fp)
-
-	one_hot_atoms = torch.tensor([[1,0,0,0],
-								[0,1,0,0],
-								[0,0,1,0],
-								[0,0,0,1]])
-	one_hot_atoms = one_hot_atoms.repeat(len(seq), 1)
-
-	one_hot_seq = torch.zeros(len(seq)*4, 20)
-	for i, aa in enumerate(seq):
-		index = aas.index(aa)
-		one_hot_seq[i*4:(i+1)*4, index] = 1
-
-	res_numbers = torch.cat([torch.ones(4,1)*i for i in range(len(seq))])
-
-	node_f = torch.cat([one_hot_atoms, one_hot_seq], dim=1)
-
-	return native_coords.to(device), node_f.to(device), res_numbers.to(device), masses.to(device), seq
-
-def plot_loss(losses, epoch):
-	plt.plot(losses)
-	plt.ylabel("Loss - RMSD (A)")
-	plt.xlabel("Batches")
-	plt.title(f'No. epochs = {epoch}')
-	plt.savefig('current_loss.png')
 
 if __name__ == "__main__":
 
@@ -353,11 +293,13 @@ if __name__ == "__main__":
 	n_steps = 180
 	temperature = 0.05
 	timestep = 0.05
+	k = 20
+	lr = 0.0005
 
 	model = Simulator(50, 128, 1).to(device)
-	model.load_state_dict(torch.load("models/current_pot.pt", map_location=device))
+	#model.load_state_dict(torch.load("models/current_pot.pt", map_location=device))
 
-	optimizer = torch.optim.Adam(model.parameters(), lr=0.0005)
+	optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 	losses = []
 
 	pytorch_total_params = sum(p.numel() for p in model.parameters())
