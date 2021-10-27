@@ -4,7 +4,7 @@
 
 # Learning interpretable protein dynamics using Geometric Deep Learning 
 
-[Project Webpage](https://cch1999.github.io/dynamics_report/index.html#summary) | [Poster](https://github.com/cch1999/protein-stability/blob/master/figs/poster.pdf)
+[Project Webpage](https://cch1999.github.io/dynamics_report/index.html#summary) | [Paper Version](https://github.com/cch1999/protein-stability/blob/master/figs/poster.pdf)
 
 MSc Project 2 for Bioinformatics degree at Imperial College London looking into learning interpretable protein dynamics using Geometric Deep Learning.
 
