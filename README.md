@@ -10,7 +10,7 @@ MSc Project 2 for Bioinformatics degree at Imperial College London looking into 
 
 ## Getting Started
 
-![Workflow](https://github.com/cch1999/protein_dynamics/blob/main/dynamics_cartoon.mp4)
+![Workflow](https://github.com/cch1999/protein_dynamics/blob/main/figs/animation.gif)
 
 ### Prerequisites used
 
