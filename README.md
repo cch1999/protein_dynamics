@@ -12,11 +12,6 @@ MSc Project 2 for Bioinformatics degree at Imperial College London looking into 
 
 ![Workflow](https://github.com/cch1999/protein_dynamics/blob/main/dynamics_cartoon.mp4)
 
-### Programs used
-
-* [Missense3D](http://www.sbg.bio.ic.ac.uk/~missense3d/) - A binary classifier of disease causing mutants and structural changes
-* [FoldX](http://foldxsuite.crg.eu/) - Predictor of changes in folding dG upon a point mutantion
-
 ### Prerequisites used
 
 Python packages used for this project
@@ -30,7 +25,7 @@ biopython
 
 ## Author
 
-* **Charles Harris** - [cch1999](https://github.com/cch1999) - ch5417@ic.ac.uk
+* **Charles Harris** - [cch1999](https://github.com/cch1999) - cch57@cam.ac.uk
 
 ## License
 
@@ -38,4 +33,7 @@ Distributed under the MIT License. See `LICENSE` for more information.
 
 ## Acknowledgments
 
-* The author would like to acknowledge the help and supervision of Prof Michael Sternberg and Dr Suhail Islam during this project. 
+* My thanks go to Michael Bronstein and Bruno Correia for their supervision and generous access to computational resources.
+
+* I would also like to thank Freyr Sverrisson for his guidance throughout the project, Fabrizio Frasca for the discussions on simplicial complexes, and Joe Greener for providing the RMSF data for his model.
+
