@@ -129,8 +129,6 @@ def read_input_file(fp, seq="", device="cpu"):
 
 if __name__ == "__main__":
 
-
-
     dm = GreenerDataModule("/Users/charlie/projects/protein_dynamics/dynamics/data/datasets/greener", 1)
 
     val_loader = dm.val_dataloader()
