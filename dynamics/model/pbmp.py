@@ -1,4 +1,11 @@
 import torch
+import torch.nn as nn
+from torch.nn.functional import normalize
+
+
+from dynamics.model.layers.linear import MLP, ResNet
+from dynamics.data.datasets.greener.variables import atoms, angles, dihedrals
+from dynamics.model.utils.geometric import knn
 
 class DistanceForces(nn.Module):
 	"""
@@ -57,25 +64,39 @@ class DihedralForces(nn.Module):
 		return self.model(messages)
 
 #----Main model----#
-class Simulator(nn.Module):
-	def __init__(self, input_size, hidden_size, output_size):
-		super(Simulator, self).__init__()
+class PBMP(nn.Module):
+	def __init__(self, temperature, timestep, n_steps, k):
+		super().__init__()
+
+		self.temperature = temperature
+		self.timestep = timestep
+		self.n_steps = n_steps
+		self.k = k
 
 		self.distance_forces = DistanceForces(24+2, 100, 15, 1)
 		self.angle_forces = AngleForces(24*3+1, 128, 3, 1)
 		self.dihedral_forces = DihedralForces(24*4+1, 128, 5, 1)
 
-	def forward(self, coords, node_f, res_numbers, masses, seq,
-				k, n_steps, timestep, temperature, animation, device):
+	def forward(self, P): 
+		"""
+		coords, node_f, res_numbers, masses, seq,
+			k, n_steps, timestep, temperature, animation, device):
+		"""
+
+		animation = False
+
+		k = self.k
+		temperature = self.temperature
+		n_steps = self.n_steps
+		timestep = self.timestep
+
+		coords, vels, accs_last, node_f = P.pos, P.vels, P.accs_last, P.x
 
 		n_atoms = coords.shape[0]
 		n_res = n_atoms // len(atoms)
 		model_n = 0
 
-		vels = torch.randn(coords.shape).to(device) * temperature
-		accs_last = torch.zeros(coords.shape).to(device)
-		randn_coords = coords + vels * timestep * n_steps
-		loss, passed = rmsd(randn_coords, coords)		
+		coords, vels, res_numbers, masses, seq = P.pos, P.vels, P.res_numbers, P.masses, P.seq
 
 		for i in range(n_steps):
 
@@ -108,7 +129,7 @@ class Simulator(nn.Module):
 			batch_size = 1
 			atom_types = node_f.view(batch_size, n_res, len(atoms), 24)
 			atom_coords = coords.view(batch_size, n_res, 3 * len(atoms))
-			atom_accs = torch.zeros(batch_size, n_res, 3 * len(atoms), device=device)
+			atom_accs = torch.zeros(batch_size, n_res, 3 * len(atoms))
 			# Angle forces
 			# across_res is the number of atoms in the next residue, starting from atom_3
 			for ai, (atom_1, atom_2, atom_3, across_res) in enumerate(angles):
@@ -255,4 +276,8 @@ class Simulator(nn.Module):
 					model_n += 1
 					save_structure(coords[None,:,:], "animation.pdb", seq, model_n)
 
-		return coords, loss
+		P.coords = coords
+		P.vels = vels
+		P.accs_last = accs_last
+
+		return P

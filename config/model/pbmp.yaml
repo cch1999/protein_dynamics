@@ -1,0 +1,6 @@
+name: pbmp
+params:
+  temperature: 0.05
+  timestep: 0.05
+  n_steps: 10
+  k: 15

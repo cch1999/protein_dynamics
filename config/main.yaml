@@ -1,14 +1,15 @@
 name: test
-device: 0
+device: cpu
 training:
+  loss: rmsd
   epochs: 10
   batch_size: 1
   lr: 0.0005
 simulator:
-  - temperature: 0.05
-  - n_steps: 200
-  - time_step: 0.05
-  - k: 20
+  temperature: 0.05
+  n_steps: 200
+  time_step: 0.05
+  k: 20
 defaults:
   - dataset: greener
-  - model: classifier
+  - model: pbmp

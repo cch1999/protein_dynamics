@@ -1,55 +1,57 @@
 import os
 import torch
 import pytorch_lightning as pl
+import numpy as np
 
-from torch.utils.data import DataLoader, Dataset
+from torch.utils.data import Dataset
+from torch_geometric.data import Data, DataLoader
 
 from dynamics.data.datasets.greener.variables import *
 
 class GreenerDataModule(pl.LightningDataModule):
-    def __init__(self, data_dir: str, batch_size: int):
-        super().__init__()
-        self.data_dir = data_dir
-        self.batch_size = batch_size
+	def __init__(self, data_dir: str, batch_size: int):
+		super().__init__()
+		self.data_dir = data_dir
+		self.batch_size = batch_size
 
-        self.setup() # TODO Check way this is not running on init
+		self.setup() # TODO Check way this is not running on init
 
-    def setup(self, stage = 'train'):
+	def setup(self, stage = 'train'):
 
-        # COPY AND PASTA
-        train_proteins = [l.rstrip() for l in open(os.path.join(self.data_dir, "splits/train.txt"))]
-        val_proteins   = [l.rstrip() for l in open(os.path.join(self.data_dir, "splits/val.txt"  ))]
+		# COPY AND PASTA
+		train_proteins = [l.rstrip() for l in open(os.path.join(self.data_dir, "splits/train.txt"))]
+		val_proteins   = [l.rstrip() for l in open(os.path.join(self.data_dir, "splits/val.txt"  ))]
 
-        coords_dir = os.path.join(self.data_dir, "data/coords/")
+		coords_dir = os.path.join(self.data_dir, "data/coords/")
 
-        self.train = ProteinDataset(train_proteins, coords_dir) # TODO FIX DIRS
-        self.test = ProteinDataset(val_proteins, coords_dir)
+		self.train = ProteinDataset(train_proteins, coords_dir) # TODO FIX DIRS
+		self.test = ProteinDataset(val_proteins, coords_dir)
 
 
-    def train_dataloader(self):
-        return DataLoader(self.train, batch_size=self.batch_size)
+	def train_dataloader(self):
+		return DataLoader(self.train, batch_size=self.batch_size)
 
-    def val_dataloader(self):
-        return DataLoader(self.test, batch_size=self.batch_size)
+	def val_dataloader(self):
+		return DataLoader(self.test, batch_size=self.batch_size)
 
-    def test_dataloader(self):
-        return DataLoader(self.mnist_test, batch_size=self.batch_size)
+	def test_dataloader(self):
+		return DataLoader(self.mnist_test, batch_size=self.batch_size)
 
 
 class ProteinDataset(Dataset):
-    def __init__(self, pdbids, coord_dir):
-        self.pdbids = pdbids
-        self.coord_dir = coord_dir
-        self.set_size = len(pdbids)
+	def __init__(self, pdbids, coord_dir):
+		self.pdbids = pdbids
+		self.coord_dir = coord_dir
+		self.set_size = len(pdbids)
 
-    def __len__(self):
-        return self.set_size
+	def __len__(self):
+		return self.set_size
 
-    def __getitem__(self, index):
-        fp = os.path.join(self.coord_dir, self.pdbids[index] + ".txt")
-        return get_features(fp)
+	def __getitem__(self, index) -> Data:
+		fp = os.path.join(self.coord_dir, self.pdbids[index] + ".txt")
+		return get_features(fp)
 
-def get_features(fp):
+def get_features(fp: str) -> Data:
 
 	# TODO remove inters constructions
 	native_coords, inters_ang, inters_dih, masses, seq = read_input_file(fp)
@@ -69,7 +71,9 @@ def get_features(fp):
 
 	node_f = torch.cat([one_hot_atoms, one_hot_seq], dim=1)
 
-	return native_coords, node_f, res_numbers, masses, seq
+	P = Data(x=node_f, pos=native_coords, native_coords=native_coords, masses=masses, res_numbers=res_numbers, seq=seq)
+
+	return P
 
 # Read an input data file
 # The protein sequence is read from the file but will overrule the file if provided
@@ -129,12 +133,13 @@ def read_input_file(fp, seq="", device="cpu"):
 
 if __name__ == "__main__":
 
-    dm = GreenerDataModule("/Users/charlie/projects/protein_dynamics/dynamics/data/datasets/greener", 1)
+	dm = GreenerDataModule("/Users/charlie/projects/protein_dynamics/dynamics/data/datasets/greener", 1)
 
-    val_loader = dm.val_dataloader()
+	val_loader = dm.val_dataloader()
 
-    print(len(val_loader))
+	print(len(val_loader))
 
-    print(next(iter(val_loader)))
-
-    print('Done')
+	for data in val_loader:
+		print(data)
+		
+	print('Done')
