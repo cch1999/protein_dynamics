@@ -121,7 +121,8 @@ class PBMP(nn.Module):
 			edges2 = torch.cat([dists.unsqueeze(1)+0.01, seq_sep], dim=1)
 
 			# Compute forces using MLP
-			forces = 50 * (self.distance_forces(node_f[senders], node_f[receivers], edges1) - self.distance_forces(node_f[senders], node_f[receivers], edges2))
+			forces = 50 * (self.distance_forces(node_f[senders], node_f[receivers], edges1) 
+						- self.distance_forces(node_f[senders], node_f[receivers], edges2))
 
 			forces = forces * norm_diffs
 			total_forces = forces.view(n_atoms, k, 3).sum(1)

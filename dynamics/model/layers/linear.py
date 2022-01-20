@@ -50,8 +50,10 @@ class ResBlock(nn.Module):
 		#x = self.norm(x)
 		return self.relu(x + residual)
 
-def MLP_with_layernorm(input_size: int, hidden_size: int, 
+
+# TODO made layer norm work better (with dim size)
+def MLP_with_layer_norm(input_size: int, hidden_size: int, 
 						num_hidden_layers: int, output_size: int):
 	return nn.Sequential(MLP(input_size, hidden_size, 
 						num_hidden_layers, output_size),
-						nn.LayerNorm())
+						nn.LayerNorm(output_size))
