@@ -39,7 +39,7 @@ class DMSWrapper(pl.LightningModule):
 		P = self.forward(P)
 		loss = self.loss_fn(P.coords, P.native_coords)
 		
-		self.log("val_loss", loss)
+		self.log("val_loss", loss[0])
 		return loss
 
 	def configure_optimizers(self):

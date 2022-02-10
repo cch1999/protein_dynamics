@@ -1,5 +1,5 @@
 name: test
-device: cpu
+device: cuda
 training:
   loss: rmsd
   epochs: 10
