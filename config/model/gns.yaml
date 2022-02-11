@@ -1,36 +1,37 @@
-k: 20
-n_steps: 200
-time_step: 0.05
-hidden_size: 128
-num_hidden_layers: 2
-encoder:
-  node_encoder:
-    input_size: 24
-    hidden_size: ${hidden_size}
-    num_hidden_layers: ${num_hidden_layers}
-    output_size: ${hidden_size}
-  edge_encoder:
-    input_size: 2
-    hidden_size: ${hidden_size}
-    num_hidden_layers: ${num_hidden_layers}
-    output_size: ${hidden_size}
-
-processor:
-  n_layers: 10
-  mpnn:
-    edge_mlp:
-      input_size: ${hidden_size}
-      hidden_size: ${hidden_size}
-      num_hidden_layers: ${num_hidden_layers}
-      output_size: ${hidden_size}
-    node_mlp:
-      input_size: ${hidden_size}
-      hidden_size: ${hidden_size}
-      num_hidden_layers: ${num_hidden_layers}
-      output_size: ${hidden_size}
-
-decoder:
-  input_size: ${hidden_size}
-  hidden_size: ${hidden_size}
-  num_hidden_layers: ${num_hidden_layers}
-  output_size: 3
+name: gns
+params:
+  k: 20
+  n_steps: 100
+  time_step: 0.05
+  hidden_size: 128
+  num_hidden_layers: 2
+  encoder:
+    node_encoder:
+      input_size: 24
+      hidden_size: 128
+      num_hidden_layers: 2
+      output_size: 128
+    edge_encoder:
+      input_size: 2
+      hidden_size: 128
+      num_hidden_layers: 2
+      output_size: 128
+  processor:
+    n_layers: 3
+    mpnn:
+      k: 20
+      edge_mlp:
+        input_size: 128
+        hidden_size: 128
+        num_hidden_layers: 2
+        output_size: 128
+      node_mlp:
+        input_size: 128
+        hidden_size: 128
+        num_hidden_layers: 2
+        output_size: 128
+  decoder:
+    input_size: 128
+    hidden_size: 128
+    num_hidden_layers: 2
+    output_size: 3

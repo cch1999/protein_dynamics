@@ -1,9 +1,12 @@
 import torch
+
 x = torch.randn(184, 3)
 
 from utils import read_input_file
 
-native_coords, inters_ang, inters_dih, masses, seq = read_input_file("protein_data/example/1CRN.txt")
+native_coords, inters_ang, inters_dih, masses, seq = read_input_file(
+    "protein_data/example/1CRN.txt"
+)
 
 print("AHHHH")
 # Turn our Tensors into KeOps symbolic variables:
@@ -24,19 +27,18 @@ vels = torch.zeros(native_coords.shape)
 
 time_steps = 1000
 for i in range(1000):
-    coords = torch.randn([4000,3], device="cuda:5")
+    coords = torch.randn([4000, 3], device="cuda:5")
 
-    xyz_i = LazyTensor(coords[:,None,:])  # x_i.shape = (1e6, 1, 3)
-    xyz_j = LazyTensor(coords[None,:,:])  # y_j.shape = ( 1, 2e6,3)
+    xyz_i = LazyTensor(coords[:, None, :])  # x_i.shape = (1e6, 1, 3)
+    xyz_j = LazyTensor(coords[None, :, :])  # y_j.shape = ( 1, 2e6,3)
 
     # We can now perform large-scale computations, without memory overflows:
-    D_ij = ((xyz_i - xyz_j)**2).sum(-1).sqrt()
+    D_ij = ((xyz_i - xyz_j) ** 2).sum(-1).sqrt()
     print(D_ij.argKmin(K=20, axis=1).shape)
     V_ij = xyz_i - xyz_j
 
-    mask = (4-D_ij).step()
+    mask = (4 - D_ij).step()
     V_ij = V_ij * mask
-
 
 
 exit()
@@ -45,30 +47,29 @@ F_ij = V_ij.normalize()
 
 # Calc net force and acceleration
 F = F_ij.sum(1)
-acc = F/masses[:, None]
+acc = F / masses[:, None]
 
 
 exit()
 
 for i in range(time_steps):
 
-    xyz_i = LazyTensor(coords[:,None,:])  # x_i.shape = (1e6, 1, 3)
-    xyz_j = LazyTensor(coords[None,:,:])  # y_j.shape = ( 1, 2e6,3)
+    xyz_i = LazyTensor(coords[:, None, :])  # x_i.shape = (1e6, 1, 3)
+    xyz_j = LazyTensor(coords[None, :, :])  # y_j.shape = ( 1, 2e6,3)
 
     # We can now perform large-scale computations, without memory overflows:
-    D_ij = ((xyz_i - xyz_j)**2).sum(-1).sqrt()
+    D_ij = ((xyz_i - xyz_j) ** 2).sum(-1).sqrt()
     V_ij = xyz_i - xyz_j
 
-    mask = (4-D_ij).step()
+    mask = (4 - D_ij).step()
     V_ij = V_ij * mask
-
 
     # Normalise force
     F_ij = V_ij.normalize()
 
     # Calc net force and acceleration
     F = F_ij.sum(1)
-    acc = F/masses[:, None]
+    acc = F / masses[:, None]
 
     # Intergrator (assuming dT = 1)
     vels = vels + acc
@@ -116,4 +117,3 @@ V = (x_ranges[:, 1] - x_ranges[:, 0])[:, None] - (y_ranges[:, 1] - y_ranges[:, 0
 total_area = areas.sum().item()  # should be equal to N*M
 sparse_area = areas[keep].sum().item()
 """
-

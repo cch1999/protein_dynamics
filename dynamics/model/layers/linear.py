@@ -1,59 +1,79 @@
 import torch
 import torch.nn as nn
 
+
 class MLP(nn.Module):
-	"""Builds an MLP."""
-	def __init__(self, input_size: int, hidden_size: int, num_hidden_layers: int, output_size: int):
-		super(MLP, self).__init__()
+    """Builds an MLP."""
 
-		layers = [nn.Linear(input_size, hidden_size), nn.ReLU()]
+    def __init__(
+        self,
+        input_size: int,
+        hidden_size: int,
+        num_hidden_layers: int,
+        output_size: int,
+    ):
+        super(MLP, self).__init__()
 
-		for _ in range(num_hidden_layers):
-			layers.append(nn.Linear(hidden_size, hidden_size))
-			layers.append(nn.ReLU())
-		
-		layers.append(nn.Linear(hidden_size, output_size))
-		self.model = nn.Sequential(*layers)
+        layers = [nn.Linear(input_size, hidden_size), nn.ReLU()]
 
-	def forward(self, x):
-		return self.model(x)
+        for _ in range(num_hidden_layers):
+            layers.append(nn.Linear(hidden_size, hidden_size))
+            layers.append(nn.ReLU())
+
+        layers.append(nn.Linear(hidden_size, output_size))
+        self.model = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.model(x)
+
 
 class ResNet(nn.Module):
-	"""Builds an ResNet."""
-	def __init__(self, input_size: int, hidden_size: int, num_hidden_layers: int, output_size: int):
-		super(ResNet, self).__init__()
+    """Builds an ResNet."""
 
-		layers = [nn.Linear(input_size, hidden_size), nn.ReLU()]
+    def __init__(
+        self,
+        input_size: int,
+        hidden_size: int,
+        num_hidden_layers: int,
+        output_size: int,
+    ):
+        super(ResNet, self).__init__()
 
-		for _ in range(num_hidden_layers):
-			layers.append(ResBlock(hidden_size))
-		
-		layers.append(nn.Linear(hidden_size, output_size))
+        layers = [nn.Linear(input_size, hidden_size), nn.ReLU()]
 
-		self.model = nn.Sequential(*layers)
+        for _ in range(num_hidden_layers):
+            layers.append(ResBlock(hidden_size))
 
-	def forward(self, x):
-		return self.model(x)
+        layers.append(nn.Linear(hidden_size, output_size))
+
+        self.model = nn.Sequential(*layers)
+
+    def forward(self, x):
+        return self.model(x)
+
 
 class ResBlock(nn.Module):
-	"""Builds an ResBlock."""
-	def __init__(self, input_size: int):
-		super(ResBlock, self).__init__()
+    """Builds an ResBlock."""
 
-		self.fc = nn.Linear(input_size, input_size)
-		self.relu = nn.ReLU()
-		#self.norm = nn.InstanceNorm1d(input_size, affine=True)
+    def __init__(self, input_size: int):
+        super(ResBlock, self).__init__()
 
-	def forward(self, x):
-		residual = x
-		x = self.fc(x)
-		#x = self.norm(x)
-		return self.relu(x + residual)
+        self.fc = nn.Linear(input_size, input_size)
+        self.relu = nn.ReLU()
+        # self.norm = nn.InstanceNorm1d(input_size, affine=True)
+
+    def forward(self, x):
+        residual = x
+        x = self.fc(x)
+        # x = self.norm(x)
+        return self.relu(x + residual)
 
 
 # TODO made layer norm work better (with dim size)
-def MLP_with_layer_norm(input_size: int, hidden_size: int, 
-						num_hidden_layers: int, output_size: int):
-	return nn.Sequential(MLP(input_size, hidden_size, 
-						num_hidden_layers, output_size),
-						nn.LayerNorm(output_size))
+def MLP_with_layer_norm(
+    input_size: int, hidden_size: int, num_hidden_layers: int, output_size: int
+):
+    return nn.Sequential(
+        MLP(input_size, hidden_size, num_hidden_layers, output_size),
+        nn.LayerNorm(output_size),
+    )

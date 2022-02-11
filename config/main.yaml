@@ -5,11 +5,12 @@ training:
   epochs: 10
   batch_size: 1
   lr: 0.0005
+  logging_freq: 10
 simulator:
   temperature: 0.05
-  n_steps: 200
+  n_steps: 150
   time_step: 0.05
   k: 20
 defaults:
   - dataset: greener
-  - model: pbmp
+  - model: gns

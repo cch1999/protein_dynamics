@@ -12,20 +12,32 @@ model.eval()
 
 
 with torch.no_grad():
-    coords, node_f, res_numbers, masses, seq = get_features("protein_data/example/1CRN.txt", device=device)
+    coords, node_f, res_numbers, masses, seq = get_features(
+        "protein_data/example/1CRN.txt", device=device
+    )
 
     native_coords = coords
     losses = []
-    
+
     for i in range(0, 10000, 500):
         print(i)
-        out, basic_loss = model(coords, node_f, res_numbers, masses, seq, 10, 
-                        n_steps=i, timestep=0.02, temperature=0.2,
-                        animation=False, device=device)
-  
-        loss = rmsd(native_coords,out)
+        out, basic_loss = model(
+            coords,
+            node_f,
+            res_numbers,
+            masses,
+            seq,
+            10,
+            n_steps=i,
+            timestep=0.02,
+            temperature=0.2,
+            animation=False,
+            device=device,
+        )
+
+        loss = rmsd(native_coords, out)
         print(loss)
         losses.append(loss)
 
     plt.plot(losses)
-    plt.savefig('RMSDs.png')
+    plt.savefig("RMSDs.png")

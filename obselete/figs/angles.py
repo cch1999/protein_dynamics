@@ -14,15 +14,11 @@ with torch.no_grad():
 
     model = model.angle_forces
 
+    fig, axes = plt.subplots(1, 3, figsize=(13, 4))
 
-
-    fig, axes = plt.subplots(1,3, figsize=(13, 4))
-
-    atoms = [[0,1,2],
-            [1,2,0],
-            [2,0,1]]
+    atoms = [[0, 1, 2], [1, 2, 0], [2, 0, 1]]
     atoms_title = ["Ca", "C", "N"]
-    angles = [111 ,116, 122]
+    angles = [111, 116, 122]
 
     for j, (atom_type, angle) in enumerate(zip(atoms, angles)):
 
@@ -38,21 +34,25 @@ with torch.no_grad():
 
         forces = []
         angles = np.arange(-180, 180, 1)
-            
+
         for i in angles:
             i = math.radians(i)
-            force = model(atom1[None,None,:].float(), atom2[None,None,:].float(), atom3[None,None,:].float(), torch.tensor(i)[None, None].to(device).float())
+            force = model(
+                atom1[None, None, :].float(),
+                atom2[None, None, :].float(),
+                atom3[None, None, :].float(),
+                torch.tensor(i)[None, None].to(device).float(),
+            )
             forces.append(force.item())
 
         axes[j].plot(angles, forces)
         axes[j].set_xlim(-180, 180)
-        axes[j].axhline(0, color='black')
-        axes[j].axvline(angle, color='red')
+        axes[j].axhline(0, color="black")
+        axes[j].axvline(angle, color="red")
         axes[j].set_ylabel("Energy")
         axes[j].set_xlabel("Bond angle (radians)")
-        axes[j].text(2.1, 20, 'True angle', color='red')
-        axes[j].set_title(f'Learned potential in -{atoms_title[j]}- angle')
+        axes[j].text(2.1, 20, "True angle", color="red")
+        axes[j].set_title(f"Learned potential in -{atoms_title[j]}- angle")
 
     fig.tight_layout()
-    plt.savefig('angles.png')
-    
+    plt.savefig("angles.png")
