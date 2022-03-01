@@ -81,6 +81,13 @@ class EGNN_Sparse(MessagePassing):
             nn.Linear(self.m_dim * 4, 1)
         ) if update_coors else None
 
+        self.vels_mlp = nn.Sequential(
+            nn.Linear(feats_dim, feats_dim * 2),
+            self.dropout,
+            nn.SiLU(),
+            nn.Linear(feats_dim * 2, 1)
+        ) if update_coors else None
+
         self.apply(self.init_)
 
     def init_(self, module):
@@ -110,10 +117,10 @@ class EGNN_Sparse(MessagePassing):
         else:
             edge_attr_feats = rel_dist
 
-        hidden_out, coors_out = self.propagate(edge_index, x=feats, edge_attr=edge_attr_feats,
-                                                           coors=coors, rel_coors=rel_coors, 
+        hidden_out, coors_out, mhat_i = self.propagate(edge_index, x=feats, edge_attr=edge_attr_feats,
+                                                           coors=coors, rel_coors=rel_coors,
                                                            batch=batch)
-        return torch.cat([coors_out, hidden_out], dim=-1)
+        return hidden_out, coors_out, mhat_i
 
 
     def message(self, x_i, x_j, edge_attr) -> Tensor:
@@ -141,36 +148,38 @@ class EGNN_Sparse(MessagePassing):
         m_ij = self.message(**msg_kwargs)
 
         # update coors if specified
-        if self.update_coors:
-            coor_wij = self.coors_mlp(m_ij)
-            # clamp if arg is set
-            if self.coor_weights_clamp_value:
-                coor_weights_clamp_value = self.coor_weights_clamp_value
-                coor_weights.clamp_(min = -clamp_value, max = clamp_value)
+        coor_wij = self.coors_mlp(m_ij)
+        # clamp if arg is set
+        if self.coor_weights_clamp_value:
+            coor_weights_clamp_value = self.coor_weights_clamp_value
+            coor_weights.clamp_(min = -clamp_value, max = clamp_value)
 
-            # normalize if needed
-            kwargs["rel_coors"] = self.coors_norm(kwargs["rel_coors"])
+        # normalize if needed
+        kwargs["rel_coors"] = self.coors_norm(kwargs["rel_coors"])
 
-            mhat_i = self.aggregate(coor_wij * kwargs["rel_coors"], **aggr_kwargs)
-            coors_out = kwargs["coors"] + mhat_i
-        else:
-            coors_out = kwargs["coors"]
+        mhat_i = self.aggregate(coor_wij * kwargs["rel_coors"], **aggr_kwargs)
+
+        #vel_wi = self.vels_mlp(kwargs["x"])
+
+        #vels_out = vel_wi*kwargs["vels"] + mhat_i/1000
+
+        coors_out = kwargs["coors"] + mhat_i
+
+
 
         # update feats if specified
-        if self.update_feats:
-            # weight the edges if arg is passed
-            if self.soft_edge:
-                m_ij = m_ij * self.edge_weight(m_ij)
-            m_i = self.aggregate(m_ij, **aggr_kwargs)
+        # weight the edges if arg is passed
+        if self.soft_edge:
+            m_ij = m_ij * self.edge_weight(m_ij)
+        m_i = self.aggregate(m_ij, **aggr_kwargs)
 
-            hidden_feats = self.node_norm(kwargs["x"], kwargs["batch"]) if self.node_norm else kwargs["x"]
-            hidden_out = self.node_mlp( torch.cat([hidden_feats, m_i], dim = -1) )
-            hidden_out = kwargs["x"] + hidden_out
-        else: 
-            hidden_out = kwargs["x"]
+        hidden_feats = self.node_norm(kwargs["x"], kwargs["batch"]) if self.node_norm else kwargs["x"]
+        hidden_out = self.node_mlp( torch.cat([hidden_feats, m_i], dim = -1) )
+        hidden_out = kwargs["x"] + hidden_out
+
 
         # return tuple
-        return self.update((hidden_out, coors_out), **update_kwargs)
+        return self.update((hidden_out, coors_out, mhat_i), **update_kwargs)
 
     def __repr__(self):
         dict_print = {}
@@ -191,6 +200,9 @@ if __name__ == "__main__":
         P.edge_index = knn_graph(P.pos, k)
 
         layer = EGNN_Sparse(24)
-        out = layer(P.x, P.pos, P.edge_index)
 
-        print(out)
+        h, pos, edge_index = P.x, P.pos, P.edge_index
+
+        for i in range(3):
+            h, pos = layer(h, pos, edge_index)
+

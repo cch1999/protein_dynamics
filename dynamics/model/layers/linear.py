@@ -20,7 +20,11 @@ class MLP(nn.Module):
             layers.append(nn.Linear(hidden_size, hidden_size))
             layers.append(nn.ReLU())
 
-        layers.append(nn.Linear(hidden_size, output_size))
+
+        last_layer = nn.Linear(hidden_size, output_size)
+        #last_layer.weight.data.fill_(0)
+        layers.append(last_layer)
+        layers.append(nn.Tanh())
         self.model = nn.Sequential(*layers)
 
     def forward(self, x):

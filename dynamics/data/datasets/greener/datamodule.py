@@ -2,6 +2,7 @@ import os
 import torch
 import pytorch_lightning as pl
 import numpy as np
+from random import sample
 
 from torch.utils.data import Dataset
 from torch_geometric.data import Data, DataLoader
@@ -11,10 +12,11 @@ from dynamics.data.datasets.greener.variables import *
 
 
 class GreenerDataModule(pl.LightningDataModule):
-    def __init__(self, data_dir: str, batch_size: int):
+    def __init__(self, data_dir: str, batch_size: int, fraction=1):
         super().__init__()
         self.data_dir = data_dir
         self.batch_size = batch_size
+        self.fraction = fraction
 
         self.setup()  # TODO Check way this is not running on init
 
@@ -24,6 +26,9 @@ class GreenerDataModule(pl.LightningDataModule):
         train_proteins = [
             l.rstrip() for l in open(os.path.join(self.data_dir, "splits/train.txt"))
         ]
+
+        #train_proteins = sample(train_proteins, round(len(train_proteins)*self.fraction))
+
         val_proteins = [
             l.rstrip() for l in open(os.path.join(self.data_dir, "splits/val.txt"))
         ]

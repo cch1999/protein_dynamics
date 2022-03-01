@@ -4,11 +4,11 @@ training:
   loss: rmsd
   epochs: 10
   batch_size: 1
-  lr: 0.0005
-  logging_freq: 10
+  lr: 0.005
+  logging_freq: 100
 simulator:
   temperature: 0.05
-  n_steps: 150
+  n_steps: 20
   time_step: 0.05
   k: 20
 defaults:

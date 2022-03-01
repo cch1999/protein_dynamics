@@ -1,3 +1,4 @@
 name: greener
 dir: /home/cch57/projects/protein_dynamics/dynamics/data/datasets/greener
+fraction: 0.01
 #faction: 1

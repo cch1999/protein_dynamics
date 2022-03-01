@@ -3,8 +3,7 @@ import torch.nn as nn
 
 from dynamics.model.layers.linear import MLP_with_layer_norm, MLP
 from dynamics.model.utils.geometric import knn
-from dynamics.utils.pdb import save_structure
-
+from dynamics.model.layers.egnn import EGNN_Sparse
 
 
 class Encoder(nn.Module):
@@ -12,12 +11,12 @@ class Encoder(nn.Module):
         super().__init__()
 
         self.node_encoder = MLP_with_layer_norm(**node_encoder)
-        self.edge_encoder = MLP_with_layer_norm(**edge_encoder)
+        #self.edge_encoder = MLP_with_layer_norm(**edge_encoder)
 
     def forward(self, P):
 
         P.x = self.node_encoder(P.x_native)
-        P.edge_attr = self.edge_encoder(P.edge_attr)
+        #P.edge_attr = self.edge_encoder(P.edge_attr)
 
         return P
 
@@ -43,8 +42,6 @@ class MPNN(nn.Module):
             torch.cat([P.x[P.receivers], P.x[P.senders], P.edge_attr], -1)
         )
 
-        P.edge_attr = m
-
         # Aggregate
         x = (m.view(P.n_atoms, 128, self.k)).sum(-1)
 
@@ -58,16 +55,18 @@ class Process(nn.Module):
     def __init__(self, n_layers, mpnn):
         super().__init__()
 
-        self.layers = [MPNN(**mpnn) for _ in range(n_layers)]
+        self.layers = [EGNN_Sparse(128, 1) for _ in range(n_layers)]
 
     def forward(self, P):
+        h, pos, vels, edge_index = P.x, P.pos, P.vels, P.edge_index
 
         for layer in self.layers:
-            residual = P.x
-            P = layer(P)
+            #residual = P.x
+            h, pos, accs = layer(h, pos, edge_index)
 
-            P.x += residual
+            #P.x += residual
 
+        P.x, P.pos_out, P.accs = h, pos, accs
         return P
 
 
@@ -78,13 +77,14 @@ class Decoder(nn.Module):
         self.node_decoder = MLP(**decoder)
 
     def forward(self, P):
-        P.accs = self.node_decoder(P.x)
+        x = torch.cat([P.x, P.pos_out, P.accs], dim=-1)
+        P.accs = self.node_decoder(x)
         return P
 
 
-class GNS(nn.Module):
+class EGNS(nn.Module):
     """
-    PyTorch Implemenation of a Graph (Neural) Network-based Simulator from 'Learning to simulate complex physics with graph networks'
+    PyTorch Implemenation of an Equivariant Graph (Neural) Network-based Simulator from 'Learning to simulate complex physics with graph networks'
     """
 
     def __init__(self, k, n_steps, time_step, encoder, processor, decoder, **kwarg):
@@ -97,12 +97,11 @@ class GNS(nn.Module):
         self.processor = Process(**processor)
         self.decoder = Decoder(decoder)
 
-    def forward(self, P, animation=None, animation_steps=None):
+    def forward(self, P):
 
         P.x_native = P.x
-        P.randn_coords = P.pos + P.vels * self.n_steps
 
-        for i in range(self.n_steps if not animation_steps else animation_steps):
+        for i in range(self.n_steps):
 
             P = self._preprocess(P)
 
@@ -112,11 +111,8 @@ class GNS(nn.Module):
 
             P = self._update(P)
 
-            if animation:
-                if i % animation == 0:
-                    save_structure(P.pos, 'animation.pdb', P.seq, i//animation)
-
         P.coords = P.pos
+        P.randn_coords = P.pos  # TODO remove placeholder
         return P
 
     def _preprocess(self, P):
@@ -130,21 +126,24 @@ class GNS(nn.Module):
         idx = knn(pos, k + 1)
         senders = idx[:, 0].repeat_interleave(k)
         receivers = idx[:, 1:].reshape(n_atoms * k)
-
+        edge_index = torch.stack([senders, receivers], dim=0)
+        """
         # Calc Euclidian distance
         diffs = pos[senders] - pos[receivers]
         dists = diffs.norm(dim=1)
         norm_diffs = diffs / dists.clamp(min=0.01).unsqueeze(1)
+        """
 
         # Calc sequence seperation
         seq_sep = abs(res_numbers[senders] - res_numbers[receivers]) / 5
-        mask = seq_sep > 1
-        seq_sep[mask] = 1
+        mask = seq_sep > 5
+        seq_sep[mask] = 5
 
         # Concat edge features
-        edges = torch.cat([diffs, dists.unsqueeze(1), seq_sep], dim=1)
+        #edges = torch.cat([dists.unsqueeze(1), seq_sep], dim=1)
+        edges = seq_sep
 
-        P.edge_attr, P.senders, P.receivers = edges, senders, receivers
+        P.edge_attr, P.senders, P.receivers, P.edge_index = edges, senders, receivers, edge_index
 
         return P
 
@@ -154,10 +153,10 @@ class GNS(nn.Module):
         P.pos = (
             P.pos
             + P.vels * self.timestep
-            + 0.5 * P.accs * self.timestep * self.timestep
+            + 0.5 * P.accs/10 * self.timestep * self.timestep
         )
 
-        P.vels = P.vels + P.accs * self.timestep
+        P.vels = P.vels + P.accs/10 * self.timestep * 0.5
 
         return P
 
@@ -178,14 +177,14 @@ if __name__ == "__main__":
     from omegaconf import OmegaConf
 
     initialize(config_path="../../config/model/", job_name="test_app")
-    cfg = compose(config_name="gns")
+    cfg = compose(config_name="egns")
 
     for P in val_loader:
         print(P)
 
         P.vels = torch.randn(P.pos.shape) * 0.05
 
-        model = GNS(**cfg.params)
+        model = EGNS(**cfg.params)
         out = model(P)
 
         exit()
