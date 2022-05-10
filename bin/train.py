@@ -1,3 +1,4 @@
+from html import entities
 from dynamics.model.dms import DMSWrapper
 from dynamics.data.datasets.greener.datamodule import GreenerDataModule
 import torch
@@ -19,7 +20,7 @@ def train(config: DictConfig):
     model = DMSWrapper(config)
 
     # Configure Trainer
-    logger = pl.loggers.WandbLogger(log_model='all', project="dynamics", config=config)
+    logger = pl.loggers.WandbLogger(log_model='all', project="dynamics", entity='cch1999', name=config.name, config=config)
     logger.watch(model)
 
     checkpoint_callback = ModelCheckpoint(monitor="val_loss", mode="min")
@@ -30,7 +31,7 @@ def train(config: DictConfig):
         max_epochs=config.training.epochs,
         log_every_n_steps=config.training.logging_freq,
         flush_logs_every_n_steps=config.training.logging_freq,
-        val_check_interval=0.001,
+        val_check_interval=config.training.val_check_interval,
     )
 
     # Train

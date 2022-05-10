@@ -1,7 +1,7 @@
 name: gns
 params:
   k: 20
-  n_steps: 100
+  n_steps: 20
   time_step: 0.05
   hidden_size: 128
   num_hidden_layers: 2
@@ -17,7 +17,7 @@ params:
       num_hidden_layers: 2
       output_size: 128
   processor:
-    n_layers: 5
+    n_layers: 3
     mpnn:
       k: 20
       edge_mlp:

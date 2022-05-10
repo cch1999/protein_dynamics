@@ -6,6 +6,7 @@ training:
   batch_size: 1
   lr: 0.005
   logging_freq: 100
+  val_check_interval: 0.5
 simulator:
   temperature: 0.05
   n_steps: 20

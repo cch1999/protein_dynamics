@@ -114,6 +114,7 @@ class GNS(nn.Module):
 
             if animation:
                 if i % animation == 0:
+                    print(f"Saving structure {i//animation} out of {animation_steps//animation}")
                     save_structure(P.pos, 'animation.pdb', P.seq, i//animation)
 
         P.coords = P.pos
