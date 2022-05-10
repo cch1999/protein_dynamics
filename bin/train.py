@@ -4,7 +4,7 @@ from dynamics.data.datasets.greener.datamodule import GreenerDataModule
 import torch
 import pytorch_lightning as pl
 
-from pytorch_lightning.callbacks import ModelCheckpoint
+from pytorch_lightning.callbacks import ModelCheckpoint, ModelSummary
 
 import hydra
 from logging import log
@@ -27,7 +27,8 @@ def train(config: DictConfig):
 
     trainer = pl.Trainer(
         logger=logger,
-        callbacks=[checkpoint_callback],
+        callbacks=[checkpoint_callback,
+                    ModelSummary(max_depth=3)],
         max_epochs=config.training.epochs,
         log_every_n_steps=config.training.logging_freq,
         flush_logs_every_n_steps=config.training.logging_freq,
