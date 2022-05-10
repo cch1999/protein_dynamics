@@ -330,7 +330,7 @@ if __name__ == "__main__":
 			loss_log.backward()
 			optimizer.step()
 			optimizer.zero_grad()
-			losses.append(loss - basic_loss)
+			losses.append((loss - basic_loss).item())
 
 			print("Epoch:", i)
 			print("Basic loss:", round(basic_loss.item(),3))
