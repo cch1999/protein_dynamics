@@ -22,7 +22,7 @@ trained_model_file = os.path.join(model_dir, "test_model2.pt")
 train_proteins = [l.rstrip() for l in open(os.path.join(dataset_dir, "train.txt"))]
 val_proteins   = [l.rstrip() for l in open(os.path.join(dataset_dir, "val.txt"  ))]
 
-device = "cuda:5"
+device = "cuda"
 
 #----Sub-models----#
 
