@@ -83,7 +83,7 @@ class PBMP(nn.Module):
         self.angle_forces = AngleForces(24 * 3 + 1, 128, 3, 1)
         self.dihedral_forces = DihedralForces(24 * 4 + 1, 128, 5, 1)
 
-    def forward(self, P):
+    def forward(self, P, animation=None, animation_steps=None):
         """
         coords, node_f, res_numbers, masses, seq,
                 k, n_steps, timestep, temperature, animation, device):
