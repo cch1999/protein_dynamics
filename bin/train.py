@@ -1,4 +1,6 @@
 from html import entities
+
+from isort import file
 from dynamics.model.dms import DMSWrapper
 from dynamics.data.datasets.greener.datamodule import GreenerDataModule
 import torch
@@ -25,7 +27,8 @@ def train(config: DictConfig):
         logger = pl.loggers.WandbLogger(log_model='all', project="dynamics", entity='cch1999', name=config.name, config=config)
         logger.watch(model)
 
-    checkpoint_callback = ModelCheckpoint(monitor="val_loss", mode="min", save_top_k=2)
+    checkpoint_callback = ModelCheckpoint(monitor="val_loss", mode="min", save_top_k=2,
+                         dirpath="checkpoints", filename='maskfill-{epoch:02d}-{val_loss:.2f}')
 
     trainer = pl.Trainer(
         accelerator=config.device,

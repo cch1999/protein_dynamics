@@ -98,15 +98,6 @@ class PBMP(nn.Module):
 		n_res = n_atoms // len(atoms)
 		model_n = 0
 
-		"""
-		coords, vels, res_numbers, masses, seq = (
-			P.pos,
-			P.vels,
-			P.res_numbers,
-			P.masses,
-			P.seq,
-		)
-		"""
 
 		for i in range(n_steps):
 
