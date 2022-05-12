@@ -1,6 +1,8 @@
 import torch
 import pytorch_lightning as pl
 
+from copy import deepcopy
+
 from dynamics.model.pbmp import PBMP
 from dynamics.model.gns import GNS
 from dynamics.model.egns import EGNS
@@ -26,40 +28,37 @@ class DMSWrapper(pl.LightningModule):
 		elif config.training.loss == "msd":
 			self.loss_fn = msd
 
-	def forward(self, P, animation=None, animation_steps=None):
-
-		# Init random velocities
-		P.vels = torch.randn(P.pos.shape) * self.config.simulator.temperature
-		P.accs_last = torch.zeros(P.pos.shape)
-
-		return self.model(P, animation=animation, animation_steps=animation_steps)
+	def forward(self, coords, x, res_numbers, masses, seq, animation=None, animation_steps=None):
+		if self.config.model.name == "pbmp":
+			return self.model(coords, x, res_numbers, masses, seq, animation=animation, animation_steps=animation_steps)
 
 	def training_step(self, P, batch_idx):
 
-		P = self.forward(P)
-		loss, passed = self.loss_fn(P.coords, P.native_coords)
-		basic_loss, _ = self.loss_fn(P.randn_coords, P.native_coords)
+		coords = deepcopy(P.native_coords)
+		x, res_numbers, masses, seq = P.x, P.res_numbers, P.masses, P.seq
+
+		coords_out = self.forward(coords, x, res_numbers, masses, seq)
+
+		loss, passed = self.loss_fn(coords_out, P.native_coords)
+		#basic_loss, _ = self.loss_fn(P.randn_coords, P.native_coords)
 
 		self.log("train_loss", loss)
-		self.log("train_corrected_loss", basic_loss - loss)
+		#self.log("train_corrected_loss", basic_loss - loss)
 		return loss
 
 
 	def validation_step(self, P, batch_idx):
 
-		"""
-		if batch_idx == 0:
-			print('testing')
-			out = self.forward(P.clone(), animation=20, animation_steps=1000)
-			print('testing')
-		"""
+		coords = deepcopy(P.native_coords)
+		x, res_numbers, masses, seq = P.x, P.res_numbers, P.masses, P.seq
 
-		P = self.forward(P)
-		loss, _ = self.loss_fn(P.coords, P.native_coords)
-		basic_loss, _ = self.loss_fn(P.randn_coords, P.native_coords)
+		coords_out = self.forward(coords, x, res_numbers, masses, seq)
+
+		loss, passed = self.loss_fn(coords_out, P.native_coords)
+		#basic_loss, _ = self.loss_fn(P.randn_coords, P.native_coords)
 
 		self.log("val_loss", loss)
-		self.log("val_corrected_loss", basic_loss - loss)
+		#self.log("val_corrected_loss", basic_loss - loss)
 
 		return loss
 
