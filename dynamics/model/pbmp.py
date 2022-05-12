@@ -85,16 +85,14 @@ class PBMP(nn.Module):
 
 	def forward(self, coords, node_f, res_numbers, masses, seq, animation=None, animation_steps=None):
 		
-		animation = False
-
 		k = self.k
 		temperature = self.temperature
 		n_steps = self.n_steps
 		timestep = self.timestep
 
 		# Init random velocities
-		vels = torch.randn(coords.shape) * temperature
-		accs_last = torch.zeros(coords.shape)
+		vels = torch.randn(coords.shape).to(coords.device) * temperature
+		accs_last = torch.zeros(coords.shape).to(coords.device)
 
 		n_atoms = coords.shape[0]
 		n_res = n_atoms // len(atoms)
@@ -144,7 +142,7 @@ class PBMP(nn.Module):
 			batch_size = 1
 			atom_types = node_f.view(batch_size, n_res, len(atoms), 24)
 			atom_coords = coords.view(batch_size, n_res, 3 * len(atoms))
-			atom_accs = torch.zeros(batch_size, n_res, 3 * len(atoms))
+			atom_accs = torch.zeros(batch_size, n_res, 3 * len(atoms)).to(coords.device)
 			# Angle forces
 			# across_res is the number of atoms in the next residue, starting from atom_3
 			for ai, (atom_1, atom_2, atom_3, across_res) in enumerate(angles):
@@ -367,10 +365,10 @@ class PBMP(nn.Module):
 			vels = vels + 0.5 * (accs_last + accs) * timestep
 			accs_last = accs
 
-			if animation:
-				if i % animation == 0:
-					model_n += 1
-					save_structure(coords[None, :, :], "animation.pdb", seq, model_n)
+            if animation:
+                if i % animation == 0:
+                    print(f"Saving structure {i//animation} out of {animation_steps//animation}")
+                    save_structure(coords, 'animation.pdb', seq, i//animation)
 
 		#P.coords = coords
 		#P.vels = vels

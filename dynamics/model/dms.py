@@ -31,6 +31,8 @@ class DMSWrapper(pl.LightningModule):
 	def forward(self, coords, x, res_numbers, masses, seq, animation=None, animation_steps=None):
 		if self.config.model.name == "pbmp":
 			return self.model(coords, x, res_numbers, masses, seq, animation=animation, animation_steps=animation_steps)
+		if self.config.model.name == "gns":
+			return self.model(coords, x, res_numbers, masses, seq, animation=animation, animation_steps=animation_steps)
 
 	def training_step(self, P, batch_idx):
 

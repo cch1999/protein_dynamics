@@ -39,6 +39,7 @@ def train(config: DictConfig):
         val_check_interval=config.training.val_check_interval,
         #profiler=AdvancedProfiler(dirpath='outputs', filename='report.txt'),
         #fast_dev_run=1,
+        overfit_batches=1
     )
 
     # Train

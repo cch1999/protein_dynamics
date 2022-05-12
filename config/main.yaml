@@ -5,8 +5,8 @@ training:
   epochs: 10
   batch_size: 1
   lr: 0.005
-  logging_freq: 100
-  val_check_interval: 0.5
+  logging_freq: 20
+  val_check_interval: 0.2
 simulator:
   temperature: 0.05
   n_steps: 20
@@ -14,4 +14,4 @@ simulator:
   k: 20
 defaults:
   - dataset: greener
-  - model: pbmp
+  - model: gns

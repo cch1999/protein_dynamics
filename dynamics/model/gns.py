@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+from torch_geometric.data import Data
 
 from dynamics.model.layers.linear import MLP_with_layer_norm, MLP
 from dynamics.model.utils.geometric import knn
@@ -58,7 +59,7 @@ class Process(nn.Module):
     def __init__(self, n_layers, mpnn):
         super().__init__()
 
-        self.layers = [MPNN(**mpnn) for _ in range(n_layers)]
+        self.layers = nn.ModuleList([MPNN(**mpnn) for _ in range(n_layers)])
 
     def forward(self, P):
 
@@ -87,17 +88,21 @@ class GNS(nn.Module):
     PyTorch Implemenation of a Graph (Neural) Network-based Simulator from 'Learning to simulate complex physics with graph networks'
     """
 
-    def __init__(self, k, n_steps, time_step, encoder, processor, decoder, **kwarg):
+    def __init__(self, k, n_steps, time_step, temperature, encoder, processor, decoder, **kwarg):
         super().__init__()
         self.k = k
         self.n_steps = n_steps
         self.timestep = time_step
+        self.temperature = temperature
 
         self.encoder = Encoder(**encoder)
         self.processor = Process(**processor)
         self.decoder = Decoder(decoder)
 
-    def forward(self, P, animation=None, animation_steps=None):
+    def forward(self, coords, x, res_numbers, masses, seq, animation=None, animation_steps=None):
+
+        vels = torch.randn(coords.shape).to(coords.device) * self.temperature
+        P = Data(x=x, pos=coords, res_numbers=res_numbers, masses=masses, seq=seq, vels=vels)
 
         P.x_native = P.x
         P.randn_coords = P.pos + P.vels * self.n_steps
@@ -117,8 +122,8 @@ class GNS(nn.Module):
                     print(f"Saving structure {i//animation} out of {animation_steps//animation}")
                     save_structure(P.pos, 'animation.pdb', P.seq, i//animation)
 
-        P.coords = P.pos
-        return P
+        coords = P.pos
+        return coords
 
     def _preprocess(self, P):
         """Computing graph connectivity and edge features"""

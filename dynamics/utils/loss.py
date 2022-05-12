@@ -21,7 +21,7 @@ def rmsd(c1, c2):
             [0.0, 1.0, 0.0],
             [0.0, 0.0, torch.det(torch.matmul(V, U.transpose(0, 1)))],
         ]
-    )
+    ).to(c1.device)
     rot = torch.matmul(torch.matmul(V, d), U.transpose(0, 1))
     rot_P = torch.matmul(rot, P)
     diffs = rot_P - Q
@@ -40,7 +40,7 @@ def msd(c1, c2):
     try:
         U, S, V = torch.svd(cov)
     except RuntimeError:
-        report("  SVD failed to converge", 0)
+        print("  SVD failed to converge", 0)
         return torch.tensor([20.0]), False
     d = torch.tensor(
         [
@@ -48,7 +48,7 @@ def msd(c1, c2):
             [0.0, 1.0, 0.0],
             [0.0, 0.0, torch.det(torch.matmul(V, U.transpose(0, 1)))],
         ]
-    )
+    ).to(c1.device)
     rot = torch.matmul(torch.matmul(V, d), U.transpose(0, 1))
     rot_P = torch.matmul(rot, P)
     diffs = rot_P - Q

@@ -1,8 +1,9 @@
 name: gns
 params:
   k: 20
-  n_steps: 20
+  n_steps: 100
   time_step: 0.05
+  temperature: 0.05
   hidden_size: 128
   num_hidden_layers: 2
   encoder:
