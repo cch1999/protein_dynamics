@@ -1,7 +1,7 @@
 name: test
-device: cuda
+device: gpu
 training:
-  loss: rmsd
+  loss: msd
   epochs: 10
   batch_size: 1
   lr: 0.005
