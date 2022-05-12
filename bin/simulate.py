@@ -32,7 +32,8 @@ def train(config: DictConfig):
     x = next(iter(data_module.val_dataloader()))
 
     model.eval()
-    out = model.forward(x, 1, 100)
+    with torch.no_grad():
+        out = model.forward(x, 1, 100)
 
     print(out)
     print('RMSD: ', rmsd(x.coords, out.coords))

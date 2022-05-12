@@ -365,10 +365,10 @@ class PBMP(nn.Module):
 			vels = vels + 0.5 * (accs_last + accs) * timestep
 			accs_last = accs
 
-            if animation:
-                if i % animation == 0:
-                    print(f"Saving structure {i//animation} out of {animation_steps//animation}")
-                    save_structure(coords, 'animation.pdb', seq, i//animation)
+			if animation:
+				if i % animation == 0:
+					print(f"Saving structure {i//animation} out of {animation_steps//animation}")
+					save_structure(coords, 'animation.pdb', seq, i//animation)
 
 		#P.coords = coords
 		#P.vels = vels
