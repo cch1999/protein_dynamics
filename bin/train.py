@@ -5,6 +5,7 @@ import torch
 import pytorch_lightning as pl
 
 from pytorch_lightning.callbacks import ModelCheckpoint, ModelSummary
+from pytorch_lightning.profiler import AdvancedProfiler
 
 import hydra
 from logging import log
@@ -26,13 +27,15 @@ def train(config: DictConfig):
     checkpoint_callback = ModelCheckpoint(monitor="val_loss", mode="min")
 
     trainer = pl.Trainer(
-        logger=logger,
+        logger=logger if config.name != 'test' else None,
         callbacks=[checkpoint_callback,
                     ModelSummary(max_depth=3)],
         max_epochs=config.training.epochs,
         log_every_n_steps=config.training.logging_freq,
         flush_logs_every_n_steps=config.training.logging_freq,
         val_check_interval=config.training.val_check_interval,
+        profiler=AdvancedProfiler(dirpath='outputs', filename='report.txt'),
+        fast_dev_run=1,
     )
 
     # Train

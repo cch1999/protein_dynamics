@@ -2,5 +2,5 @@ name: pbmp
 params:
   temperature: 0.05
   timestep: 0.05
-  n_steps: 180
+  n_steps: 30
   k: 20
