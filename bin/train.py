@@ -21,12 +21,15 @@ def train(config: DictConfig):
     model = DMSWrapper(config)
 
     # Configure Trainer
-    logger = pl.loggers.WandbLogger(log_model='all', project="dynamics", entity='cch1999', name=config.name, config=config)
-    logger.watch(model)
+    if  config.name != 'test':
+        logger = pl.loggers.WandbLogger(log_model='all', project="dynamics", entity='cch1999', name=config.name, config=config)
+        logger.watch(model)
 
-    checkpoint_callback = ModelCheckpoint(monitor="val_loss", mode="min")
+    checkpoint_callback = ModelCheckpoint(monitor="val_loss", mode="min", save_top_k=2)
 
     trainer = pl.Trainer(
+        accelerator=config.device,
+        devices=1,
         logger=logger if config.name != 'test' else None,
         callbacks=[checkpoint_callback,
                     ModelSummary(max_depth=3)],
@@ -34,8 +37,8 @@ def train(config: DictConfig):
         log_every_n_steps=config.training.logging_freq,
         flush_logs_every_n_steps=config.training.logging_freq,
         val_check_interval=config.training.val_check_interval,
-        profiler=AdvancedProfiler(dirpath='outputs', filename='report.txt'),
-        fast_dev_run=1,
+        #profiler=AdvancedProfiler(dirpath='outputs', filename='report.txt'),
+        #fast_dev_run=1,
     )
 
     # Train
