@@ -11,12 +11,12 @@ class Encoder(nn.Module):
         super().__init__()
 
         self.node_encoder = MLP_with_layer_norm(**node_encoder)
-        #self.edge_encoder = MLP_with_layer_norm(**edge_encoder)
+        # self.edge_encoder = MLP_with_layer_norm(**edge_encoder)
 
     def forward(self, P):
 
         P.x = self.node_encoder(P.x_native)
-        #P.edge_attr = self.edge_encoder(P.edge_attr)
+        # P.edge_attr = self.edge_encoder(P.edge_attr)
 
         return P
 
@@ -61,10 +61,10 @@ class Process(nn.Module):
         h, pos, vels, edge_index = P.x, P.pos, P.vels, P.edge_index
 
         for layer in self.layers:
-            #residual = P.x
+            # residual = P.x
             h, pos, accs = layer(h, pos, edge_index)
 
-            #P.x += residual
+            # P.x += residual
 
         P.x, P.pos_out, P.accs = h, pos, accs
         return P
@@ -140,10 +140,15 @@ class EGNS(nn.Module):
         seq_sep[mask] = 5
 
         # Concat edge features
-        #edges = torch.cat([dists.unsqueeze(1), seq_sep], dim=1)
+        # edges = torch.cat([dists.unsqueeze(1), seq_sep], dim=1)
         edges = seq_sep
 
-        P.edge_attr, P.senders, P.receivers, P.edge_index = edges, senders, receivers, edge_index
+        P.edge_attr, P.senders, P.receivers, P.edge_index = (
+            edges,
+            senders,
+            receivers,
+            edge_index,
+        )
 
         return P
 
@@ -153,10 +158,10 @@ class EGNS(nn.Module):
         P.pos = (
             P.pos
             + P.vels * self.timestep
-            + 0.5 * P.accs/10 * self.timestep * self.timestep
+            + 0.5 * P.accs / 10 * self.timestep * self.timestep
         )
 
-        P.vels = P.vels + P.accs/10 * self.timestep * 0.5
+        P.vels = P.vels + P.accs / 10 * self.timestep * 0.5
 
         return P
 

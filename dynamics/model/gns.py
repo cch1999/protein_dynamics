@@ -7,7 +7,6 @@ from dynamics.model.utils.geometric import knn
 from dynamics.utils.pdb import save_structure
 
 
-
 class Encoder(nn.Module):
     def __init__(self, node_encoder, edge_encoder):
         super().__init__()
@@ -88,7 +87,9 @@ class GNS(nn.Module):
     PyTorch Implemenation of a Graph (Neural) Network-based Simulator from 'Learning to simulate complex physics with graph networks'
     """
 
-    def __init__(self, k, n_steps, time_step, temperature, encoder, processor, decoder, **kwarg):
+    def __init__(
+        self, k, n_steps, time_step, temperature, encoder, processor, decoder, **kwarg
+    ):
         super().__init__()
         self.k = k
         self.n_steps = n_steps
@@ -99,10 +100,14 @@ class GNS(nn.Module):
         self.processor = Process(**processor)
         self.decoder = Decoder(decoder)
 
-    def forward(self, coords, x, res_numbers, masses, seq, animation=None, animation_steps=None):
+    def forward(
+        self, coords, x, res_numbers, masses, seq, animation=None, animation_steps=None
+    ):
 
         vels = torch.randn(coords.shape).to(coords.device) * self.temperature
-        P = Data(x=x, pos=coords, res_numbers=res_numbers, masses=masses, seq=seq, vels=vels)
+        P = Data(
+            x=x, pos=coords, res_numbers=res_numbers, masses=masses, seq=seq, vels=vels
+        )
 
         P.x_native = P.x
         P.randn_coords = P.pos + P.vels * self.n_steps
@@ -119,8 +124,10 @@ class GNS(nn.Module):
 
             if animation:
                 if i % animation == 0:
-                    print(f"Saving structure {i//animation} out of {animation_steps//animation}")
-                    save_structure(P.pos, 'animation.pdb', P.seq, i//animation)
+                    print(
+                        f"Saving structure {i//animation} out of {animation_steps//animation}"
+                    )
+                    save_structure(P.pos, "animation.pdb", P.seq, i // animation)
 
         coords = P.pos
         return coords

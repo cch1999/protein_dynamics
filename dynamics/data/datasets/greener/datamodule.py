@@ -27,7 +27,7 @@ class GreenerDataModule(pl.LightningDataModule):
             l.rstrip() for l in open(os.path.join(self.data_dir, "splits/train.txt"))
         ]
 
-        #train_proteins = sample(train_proteins, round(len(train_proteins)*self.fraction))
+        # train_proteins = sample(train_proteins, round(len(train_proteins)*self.fraction))
 
         val_proteins = [
             l.rstrip() for l in open(os.path.join(self.data_dir, "splits/val.txt"))

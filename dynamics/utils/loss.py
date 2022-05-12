@@ -28,6 +28,7 @@ def rmsd(c1, c2):
     msd = (diffs**2).sum() / diffs.size(1)
     return msd.sqrt(), True
 
+
 def msd(c1, c2):
     """
     Returns the MSD loss between two structures

@@ -19,30 +19,42 @@ def train(config: DictConfig):
     print(OmegaConf.to_yaml(config))
 
     # Prepare dataloaders and model
-    data_module = GreenerDataModule(config.dataset.dir, config.training.batch_size, config.dataset.fraction)
+    data_module = GreenerDataModule(
+        config.dataset.dir, config.training.batch_size, config.dataset.fraction
+    )
     model = DMSWrapper(config)
 
     # Configure Trainer
-    if  config.name != 'test':
-        logger = pl.loggers.WandbLogger(log_model='all', project="dynamics", entity='cch1999', name=config.name, config=config)
+    if config.name != "test":
+        logger = pl.loggers.WandbLogger(
+            log_model="all",
+            project="dynamics",
+            entity="cch1999",
+            name=config.name,
+            config=config,
+        )
         logger.watch(model)
 
-    checkpoint_callback = ModelCheckpoint(monitor="val_loss", mode="min", save_top_k=2,
-                         dirpath="checkpoints", filename='maskfill-{epoch:02d}-{val_loss:.2f}')
+    checkpoint_callback = ModelCheckpoint(
+        monitor="val_loss",
+        mode="min",
+        save_top_k=2,
+        dirpath="checkpoints",
+        filename="maskfill-{epoch:02d}-{val_loss:.2f}",
+    )
 
     trainer = pl.Trainer(
         accelerator=config.device,
         devices=1,
-        logger=logger if config.name != 'test' else None,
-        callbacks=[checkpoint_callback,
-                    ModelSummary(max_depth=3)],
+        logger=logger if config.name != "test" else None,
+        callbacks=[checkpoint_callback, ModelSummary(max_depth=3)],
         max_epochs=config.training.epochs,
         log_every_n_steps=config.training.logging_freq,
         flush_logs_every_n_steps=config.training.logging_freq,
         val_check_interval=config.training.val_check_interval,
-        #profiler=AdvancedProfiler(dirpath='outputs', filename='report.txt'),
-        #fast_dev_run=1,
-        #overfit_batches=1
+        # profiler=AdvancedProfiler(dirpath='outputs', filename='report.txt'),
+        # fast_dev_run=1,
+        # overfit_batches=1
     )
 
     # Train
