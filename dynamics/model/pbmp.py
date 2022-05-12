@@ -6,6 +6,7 @@ from torch.nn.functional import normalize
 from dynamics.model.layers.linear import MLP, ResNet
 from dynamics.data.datasets.greener.variables import atoms, angles, dihedrals
 from dynamics.model.utils.geometric import knn
+from dynamics.utils.pdb import save_structure
 
 
 class DistanceForces(nn.Module):
