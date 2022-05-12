@@ -14,4 +14,4 @@ simulator:
   k: 20
 defaults:
   - dataset: greener
-  - model: gns
+  - model: pbmp

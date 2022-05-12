@@ -4,3 +4,6 @@ params:
   timestep: 0.05
   n_steps: 100
   k: 20
+  input_dim: 24
+  hidden_dim: 128
+  num_hidden_layers: 4

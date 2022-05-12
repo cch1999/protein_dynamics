@@ -71,7 +71,7 @@ class DihedralForces(nn.Module):
 
 # ----Main model----#
 class PBMP(nn.Module):
-	def __init__(self, temperature, timestep, n_steps, k):
+	def __init__(self, input_dim, hidden_dim, num_hidden_layers, temperature, timestep, n_steps, k):
 		super().__init__()
 
 		self.temperature = temperature
@@ -79,9 +79,9 @@ class PBMP(nn.Module):
 		self.n_steps = n_steps
 		self.k = k
 
-		self.distance_forces = DistanceForces(24 + 2, 100, 15, 1)
-		self.angle_forces = AngleForces(24 * 3 + 1, 128, 3, 1)
-		self.dihedral_forces = DihedralForces(24 * 4 + 1, 128, 5, 1)
+		self.distance_forces = DistanceForces(input_dim + 2, hidden_dim, num_hidden_layers, 1)
+		self.angle_forces = AngleForces(input_dim * 3 + 1, hidden_dim, num_hidden_layers, 1)
+		self.dihedral_forces = DihedralForces(input_dim * 4 + 1, hidden_dim, num_hidden_layers, 1)
 
 	def forward(self, coords, node_f, res_numbers, masses, seq, animation=None, animation_steps=None):
 		
